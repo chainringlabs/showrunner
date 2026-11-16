@@ -163,7 +163,7 @@ jobs:
       # second reader of the same lockfile. The toolchain and install steps are
       # gated too so a PR run skips all three.
       # @spec SHIP-SUPPLY-003
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         if: ${{ github.event_name != 'pull_request' }}
 
       - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2
