@@ -34,7 +34,7 @@ pub async fn patch_episode(
         )));
     }
 
-    queries::get_show_detail(&state.pool, show_tmdb_id, &today_in(state.tz))
+    queries::get_show_detail(&state.pool, show_tmdb_id, &today_in(&state.tz))
         .await?
         .map(Json)
         .ok_or_else(|| AppError::NotFound(format!("show {} not on watchlist", show_tmdb_id)))

@@ -42,9 +42,9 @@ The initial fetch and the post-mark `load()` are two separate implementations of
 
 `get_calendar` (backend/src/api/calendar.rs):
 
-1. `start` and `end` are required and parsed as `%Y-%m-%d`; a parse failure is 400 `invalid start date: <raw>` / `invalid end date: <raw>` (the two `NaiveDate::parse_from_str` calls in `get_calendar`).
+1. `start` and `end` are required and parsed as `%Y-%m-%d`; a parse failure is 400 `invalid start date: <raw>` / `invalid end date: <raw>` (the two `Date::strptime` calls in `get_calendar`). The parser accepts a four-digit year only, so a signed or longer year such as `+009999-10-01` is a parse failure.
 2. `end < start` is 400 `end must be >= start`; a span over `MAX_RANGE_DAYS` (92) is 400 `range N days exceeds max of 92` (the two guards in `get_calendar`).
-3. The **parsed** dates are re-formatted before binding (the `list_calendar_episodes` call in `get_calendar`). `air_date` is TEXT compared bytewise, so a raw string such as `+009999-10-01` (which chrono accepts) must not reach SQL in a form that sorts below every stored date.
+3. The **parsed** dates are re-formatted before binding (the `list_calendar_episodes` call in `get_calendar`). `air_date` is TEXT compared bytewise, so a raw string in a form the parser accepts but SQL would compare wrongly, such as the single-digit month and day in `2026-1-5` or a leading space, must not reach SQL: it is the canonical zero-padded form that is bound.
 4. `list_calendar_episodes` (queries.rs) returns every episode with a non-null `air_date` in `[start, end]`, joined to its show, ordered by air date, show name, season, episode. There is no row cap; the date window is the bound.
 
 Each `CalendarEpisode` (models/show.rs) carries show id and name, poster, season and episode numbers, episode name, `air_date`, and `watched`.
@@ -89,15 +89,14 @@ Each `CalendarEpisode` (models/show.rs) carries show id and name, poster, season
 ## Open Questions & Future Decisions
 
 ### Resolved
-*(none yet)*
+1. ✅ **Malformed calendar dates.** A signed or over-long year (`+009999-10-01`, `12026-01-02`) is a parse failure and gets the 400 of step 1. A date that parses but is not canonical, such as a single-digit month or day or a leading space, is accepted and bound in zero-padded form (step 3). Pinned by `calendar_signed_or_overlong_year_is_rejected`, `calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql`, and `calendar_leading_space_is_normalized_before_it_reaches_sql` (backend/tests/api.rs).
 
 ### Deferred
 1. **No row cap on the calendar query.** Every other list is bounded by `MAX_LIST_ROWS`; the calendar relies on the 92-day window alone (the SQL in `list_calendar_episodes`).
-2. **Unpinned malformed-date contract.** `calendar_signed_year_does_not_bypass_the_92_day_cap` and `calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql` (backend/tests/api.rs) accept either 200-with-normalized-results or 400 for signed-year and non-zero-padded inputs. Which is intended?
-3. **Duplicate fetch code on Up Next** (`load()` vs the effect) and a stale list on a failed post-mark re-fetch.
-4. **Clipped cells.** `.calendar-eps` (the episode list inside each cell) hides overflow (index.css); a day with many episodes silently drops chips.
-5. **Network pill keys** are the network name (the `network-pill` span's `key` in `UpNext`); duplicate names would collide.
-6. **Locale.** English month and weekday names, Sunday start, raw `YYYY-MM-DD` dates in the UI.
+2. **Duplicate fetch code on Up Next** (`load()` vs the effect) and a stale list on a failed post-mark re-fetch.
+3. **Clipped cells.** `.calendar-eps` (the episode list inside each cell) hides overflow (index.css); a day with many episodes silently drops chips.
+4. **Network pill keys** are the network name (the `network-pill` span's `key` in `UpNext`); duplicate names would collide.
+5. **Locale.** English month and weekday names, Sunday start, raw `YYYY-MM-DD` dates in the UI.
 7. **Fetch window.** The 42-cell grid requests up to six days before and twelve after the month; those episodes render in `calendar-cell-other` cells.
 8. **Mark watched semantics.** Up Next's button marks only the shown episode; marking "through here" from Up Next is not offered.
 9. **Agenda chip count.** The agenda has no overflow hiding, so a day with many episodes is as tall as it needs to be; the grid's clipped cells (item 4) remain the desktop behaviour.
@@ -108,6 +107,6 @@ Each `CalendarEpisode` (models/show.rs) carries show id and name, poster, season
 - backend/src/db/queries.rs (`list_up_next`, `list_calendar_episodes`)
 - backend/src/models/show.rs (`UpNextItem`, `CalendarEpisode`)
 - frontend/src/pages/UpNext.tsx, frontend/src/pages/Calendar.tsx
-- backend/tests/db.rs (`list_up_next_picks_oldest_unwatched_aired_per_show`, `list_up_next_includes_networks_and_resync_backfills_them`, `list_up_next_skips_shows_with_no_unwatched_aired_episodes`, `list_calendar_episodes_filters_by_range`, `list_up_next_is_capped`); backend/tests/api.rs (`calendar_returns_episodes_in_range`, `calendar_rejects_invalid_dates`, `calendar_rejects_inverted_range`, `calendar_rejects_range_exceeding_92_days`, `up_next_returns_oldest_unwatched_per_show`, `calendar_signed_year_does_not_bypass_the_92_day_cap`, `calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql`, `calendar_ordinary_range_still_returns_the_in_window_episode`)
+- backend/tests/db.rs (`list_up_next_picks_oldest_unwatched_aired_per_show`, `list_up_next_includes_networks_and_resync_backfills_them`, `list_up_next_skips_shows_with_no_unwatched_aired_episodes`, `list_calendar_episodes_filters_by_range`, `list_up_next_is_capped`); backend/tests/api.rs (`calendar_returns_episodes_in_range`, `calendar_rejects_invalid_dates`, `calendar_rejects_inverted_range`, `calendar_rejects_range_exceeding_92_days`, `up_next_returns_oldest_unwatched_per_show`, `calendar_signed_or_overlong_year_is_rejected`, `calendar_leading_space_is_normalized_before_it_reaches_sql`, `calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql`, `calendar_ordinary_range_still_returns_the_in_window_episode`)
 - frontend/src/pages/UpNext.test.tsx (13 tests), frontend/src/pages/Calendar.test.tsx (11 tests)
 - Consumed: `shows` (`today_in`, the aired definition, `networks_json`, the single-episode PATCH), `app` (home route `/` → Up Next; the narrow breakpoint, `useNarrow`, and the narrow media block in frontend/src/index.css)

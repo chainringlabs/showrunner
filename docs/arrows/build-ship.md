@@ -4,7 +4,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 18 specs implemented and annotated; a publish now requires the CI gates, and branch protection requires them on pull requests. The LLD's remaining Deferred items stay open.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 19 specs implemented and annotated; a publish now requires the CI gates, and branch protection requires them on pull requests. The LLD's remaining Deferred items stay open.
 
 ## References
 
@@ -15,7 +15,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 - docs/intent/build-ship/build-ship-design.md
 
 ### EARS
-- docs/intent/build-ship/build-ship-specs.md (18 specs: 18 implemented, 0 deferred, 0 active gaps)
+- docs/intent/build-ship/build-ship-specs.md (19 specs: 19 implemented, 0 deferred, 0 active gaps)
 
 ### Tests
 - The gate steps are their own checks (HLD → Annotation Conventions). `SHIP-IMAGE-002` to `006` describe the built image and have no check; `SHIP-SUPPLY-004` lives in JSON and cannot be cited.
@@ -23,6 +23,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 - .github/workflows/supply-chain.yml — job `scan`: steps `Install frontend deps (no scripts)`, `Verify npm package signatures`, `Socket Security scan (frontend)`, `Fetch base-branch lockfiles (PR diff mode)`, `OSV scan base lockfiles (PR diff mode)`, `OSV scan PR lockfiles (PR diff mode)`, `Check that both scans completed (PR diff mode)`, `Report vulnerabilities introduced by this PR`, `OSV scan (absolute, main / scheduled)`, `cargo audit (backend)` (absolute runs only).
 - .github/workflows/docker-publish.yml — job `supply-chain` (call of supply-chain.yml); job `build-and-push`: steps `Extract metadata (tags, labels)`, `Build and push Docker image` (the only check that exercises `SHIP-IMAGE-001`; builds without pushing on pull requests), `Install cosign`, `Sign image with cosign (keyless)`, `Generate SBOM (SPDX)`, `Attest SBOM`, `Attest build provenance`.
 - .github/workflows/ghcr-retention.yml — job `prune`: step `Prune GHCR (keep latest + 5 most recent tagged)`.
+- backend/tests/supply_chain.rs — `every_osv_ignore_has_a_reason_and_an_expiry`, `every_cargo_audit_ignore_is_also_an_osv_entry`, `the_parsers_see_entries_and_reject_a_missing_expiry` (`SHIP-SUPPLY-005`).
 - Image verification by an operator is documented in README.md → Verifying the image (`cosign verify`, `gh attestation verify`).
 
 ### Code
@@ -35,6 +36,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 - .github/workflows/supply-chain.yml — job `scan` (`SHIP-SUPPLY-001`), its `permissions` (`SHIP-CI-003`), the PR diff-mode OSV steps (`SHIP-SUPPLY-002`), the absolute OSV step (`SHIP-SUPPLY-003`).
 - .github/workflows/docker-publish.yml — workflow and job `permissions` (`SHIP-CI-003`), job `ci` (`SHIP-CI-001`, `SHIP-RELEASE-001`), job `supply-chain` (`SHIP-SUPPLY-003`), job `build-and-push` and its metadata step (`SHIP-RELEASE-001`), the build step (`SHIP-IMAGE-001`), the cosign / SBOM / attestation steps (`SHIP-RELEASE-002`).
 - .github/workflows/ghcr-retention.yml — `permissions` (`SHIP-CI-003`), job `prune` (`SHIP-RELEASE-003`).
+- backend/osv-scanner.toml, backend/.cargo/audit.toml — the backend advisory ignore lists (`SHIP-SUPPLY-003`, `SHIP-SUPPLY-005`).
 - renovate.json — `SHIP-SUPPLY-004` (JSON cannot carry a `@spec` comment; the LLD's Retention and dependency updates section is its only anchor).
 - Related, unannotated: .gitignore; env.example; frontend/osv-scanner.toml (per-lockfile OSV ignore list read by the scan); README.md (Quick start, Verifying the image, Updating, Backup & restore); SECURITY.md (Supply chain); CONTRIBUTING.md (Before you push); .github/pull_request_template.md.
 - Consumed from other segments: `app` — the binary's `--healthcheck` mode (`main`, `api::health::probe_from_env`) that the image's `HEALTHCHECK` runs, and the `STATIC_DIR` setting the runtime stage and compose file supply.
@@ -47,7 +49,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 **Key Components:**
 1. Three-stage Dockerfile — lockfile-exact builds on glibc, distroless non-root runtime with a self-probing `HEALTHCHECK`.
 2. `ci.yml` — formatting, lint, typecheck, tests with coverage floors; weekly absolute supply-chain scan of `main`.
-3. `supply-chain.yml` — signatures, Socket, OSV diff on PRs; OSV absolute plus cargo audit on `main` and the weekly schedule.
+3. `supply-chain.yml` — signatures, Socket, OSV diff on PRs; OSV absolute plus cargo audit on `main` and the weekly schedule, each honouring a dated per-lockfile ignore list.
 4. `docker-publish.yml` and `ghcr-retention.yml` — scan-gated push, keyless signing, SBOM and provenance, weekly prune.
 5. `renovate.json` — digest pinning and grouped, soaked auto-merges.
 
@@ -57,10 +59,10 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 |----------|----------|-------------|----------|------|
 | Image | SHIP-IMAGE-001 to 006 | 6 | 0 | 0 |
 | CI | SHIP-CI-001 to 005 | 5 | 0 | 0 |
-| Supply | SHIP-SUPPLY-001 to 004 | 4 | 0 | 0 |
+| Supply | SHIP-SUPPLY-001 to 005 | 5 | 0 | 0 |
 | Release | SHIP-RELEASE-001 to 003 | 3 | 0 | 0 |
 
-**Summary:** 18 of 18 active specs implemented; 0 deferred. (Specs with no test citation: SHIP-IMAGE-002, SHIP-IMAGE-003, SHIP-IMAGE-004, SHIP-IMAGE-005, SHIP-IMAGE-006 — image properties with no separate check; SHIP-SUPPLY-004 — uncitable JSON.)
+**Summary:** 19 of 19 active specs implemented; 0 deferred. (Specs with no test citation: SHIP-IMAGE-002, SHIP-IMAGE-003, SHIP-IMAGE-004, SHIP-IMAGE-005, SHIP-IMAGE-006 — image properties with no separate check; SHIP-SUPPLY-004 — uncitable JSON.)
 
 ## Key Findings
 

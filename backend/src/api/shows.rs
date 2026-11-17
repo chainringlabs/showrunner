@@ -16,7 +16,7 @@ pub struct WatchlistResponse {
 
 // @spec SHOWS-API-008
 pub async fn list_shows(State(state): State<AppState>) -> Result<Json<WatchlistResponse>> {
-    let shows = queries::list_watchlist(&state.pool, state.tz).await?;
+    let shows = queries::list_watchlist(&state.pool, &state.tz).await?;
     Ok(Json(WatchlistResponse { shows }))
 }
 
@@ -49,7 +49,7 @@ pub async fn add_show(
 
     queries::insert_show_full(&state.pool, &show, &seasons).await?;
 
-    let item = queries::get_watchlist_item(&state.pool, req.tmdb_id, state.tz)
+    let item = queries::get_watchlist_item(&state.pool, req.tmdb_id, &state.tz)
         .await?
         .ok_or_else(|| AppError::Config("show vanished after insert".into()))?;
     Ok((StatusCode::CREATED, Json(item)))
@@ -60,7 +60,7 @@ pub async fn get_show(
     State(state): State<AppState>,
     Path(tmdb_id): Path<i64>,
 ) -> Result<Json<ShowDetail>> {
-    queries::get_show_detail(&state.pool, tmdb_id, &today_in(state.tz))
+    queries::get_show_detail(&state.pool, tmdb_id, &today_in(&state.tz))
         .await?
         .map(Json)
         .ok_or_else(|| AppError::NotFound(format!("show {} not on watchlist", tmdb_id)))
@@ -126,9 +126,9 @@ pub async fn bulk_watch(
         },
     };
 
-    queries::bulk_set_watched(&state.pool, tmdb_id, &scope, req.watched, state.tz).await?;
+    queries::bulk_set_watched(&state.pool, tmdb_id, &scope, req.watched, &state.tz).await?;
 
-    queries::get_show_detail(&state.pool, tmdb_id, &today_in(state.tz))
+    queries::get_show_detail(&state.pool, tmdb_id, &today_in(&state.tz))
         .await?
         .map(Json)
         .ok_or_else(|| AppError::NotFound(format!("show {} not on watchlist", tmdb_id)))

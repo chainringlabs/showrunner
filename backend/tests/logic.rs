@@ -52,7 +52,7 @@ async fn resync_show_updates_metadata_and_episodes_preserving_watched() {
     resync::resync_show(&pool, &tmdb, 42).await.unwrap();
 
     let detail =
-        queries::get_show_detail(&pool, 42, &showrunner_backend::state::today_in(utc_tz()))
+        queries::get_show_detail(&pool, 42, &showrunner_backend::state::today_in(&utc_tz()))
             .await
             .unwrap()
             .unwrap();
@@ -255,7 +255,7 @@ async fn resync_all_skips_recently_synced_ended_shows() {
     let pool = test_pool().await;
     insert_show(&pool, 1, "Airing", None, Some("Returning Series"), &[]).await;
     insert_show(&pool, 2, "Ended", None, Some("Ended"), &[]).await;
-    let recent = chrono::Utc::now().to_rfc3339();
+    let recent = showrunner_backend::state::now_utc_rfc3339();
     sqlx::query("UPDATE shows SET last_synced_at = ?")
         .bind(&recent)
         .execute(&pool)

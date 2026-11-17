@@ -2,16 +2,11 @@
 
 mod common;
 
-use chrono::{Duration, Utc};
 use showrunner_backend::datasources::tmdb::{TmdbEpisode, TmdbMovie, TmdbSeason, TmdbShow};
 use showrunner_backend::db::queries::{self, BulkScope};
 use showrunner_backend::state::today_in;
 
 use crate::common::*;
-
-fn iso_offset(days: i64) -> String {
-    (Utc::now().date_naive() + Duration::days(days)).to_string()
-}
 
 fn deser_show(json: serde_json::Value) -> TmdbShow {
     serde_json::from_value(json).unwrap()
@@ -47,7 +42,7 @@ async fn insert_show_full_persists_show_seasons_and_episodes() {
         .await
         .unwrap();
 
-    let detail = queries::get_show_detail(&pool, 100, &today_in(utc_tz()))
+    let detail = queries::get_show_detail(&pool, 100, &today_in(&utc_tz()))
         .await
         .unwrap()
         .unwrap();
@@ -91,7 +86,7 @@ async fn delete_show_cascades_to_seasons_and_episodes() {
     insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-2)), false).await;
 
     assert!(queries::delete_show(&pool, 1).await.unwrap());
-    let detail = queries::get_show_detail(&pool, 1, &today_in(utc_tz()))
+    let detail = queries::get_show_detail(&pool, 1, &today_in(&utc_tz()))
         .await
         .unwrap();
     assert!(detail.is_none());
@@ -117,7 +112,7 @@ async fn list_watchlist_includes_progress_and_next_air_date() {
     insert_season(&pool, 2, 1, 1).await;
     insert_episode(&pool, 2, 1, 1, None, false).await;
 
-    let items = queries::list_watchlist(&pool, utc_tz()).await.unwrap();
+    let items = queries::list_watchlist(&pool, &utc_tz()).await.unwrap();
     // Sorted alphabetically (case-insensitive): Alpha, beta
     assert_eq!(items.len(), 2);
     assert_eq!(items[0].name, "Alpha");
@@ -136,7 +131,7 @@ async fn list_watchlist_includes_progress_and_next_air_date() {
 #[tokio::test]
 async fn get_watchlist_item_returns_none_for_unknown() {
     let pool = test_pool().await;
-    assert!(queries::get_watchlist_item(&pool, 999, utc_tz())
+    assert!(queries::get_watchlist_item(&pool, 999, &utc_tz())
         .await
         .unwrap()
         .is_none());
@@ -145,7 +140,7 @@ async fn get_watchlist_item_returns_none_for_unknown() {
 #[tokio::test]
 async fn get_show_detail_returns_none_for_unknown() {
     let pool = test_pool().await;
-    assert!(queries::get_show_detail(&pool, 999, &today_in(utc_tz()))
+    assert!(queries::get_show_detail(&pool, 999, &today_in(&utc_tz()))
         .await
         .unwrap()
         .is_none());
@@ -162,7 +157,7 @@ async fn get_show_detail_handles_invalid_providers_json() {
     .execute(&pool)
     .await
     .unwrap();
-    let detail = queries::get_show_detail(&pool, 1, &today_in(utc_tz()))
+    let detail = queries::get_show_detail(&pool, 1, &today_in(&utc_tz()))
         .await
         .unwrap()
         .unwrap();
@@ -300,7 +295,8 @@ async fn set_last_synced(pool: &sqlx::SqlitePool, tmdb_id: i64, ts: Option<&str>
 }
 
 fn days_ago(days: i64) -> String {
-    (chrono::Utc::now() - chrono::Duration::days(days)).to_rfc3339()
+    let then = jiff::Timestamp::now() - jiff::SignedDuration::from_hours(24 * days);
+    showrunner_backend::state::format_utc_rfc3339(then)
 }
 
 // @spec RESYNC-RUN-006
@@ -360,7 +356,7 @@ async fn list_up_next_picks_oldest_unwatched_aired_per_show() {
     insert_episode(&pool, 2, 1, 1, Some(&iso_offset(-5)), false).await;
     insert_episode(&pool, 2, 1, 2, Some(&iso_offset(20)), false).await;
 
-    let items = queries::list_up_next(&pool, utc_tz()).await.unwrap();
+    let items = queries::list_up_next(&pool, &utc_tz()).await.unwrap();
     assert_eq!(items.len(), 2);
     // Sorted by oldest first
     assert_eq!(items[0].show_tmdb_id, 1);
@@ -393,7 +389,7 @@ async fn list_up_next_includes_networks_and_resync_backfills_them() {
     insert_season(&pool, 20, 1, 1).await;
     insert_episode(&pool, 20, 1, 1, Some(&iso_offset(-3)), false).await;
 
-    let items = queries::list_up_next(&pool, utc_tz()).await.unwrap();
+    let items = queries::list_up_next(&pool, &utc_tz()).await.unwrap();
     assert_eq!(items.len(), 2);
     assert_eq!(
         items[0].networks,
@@ -408,7 +404,7 @@ async fn list_up_next_includes_networks_and_resync_backfills_them() {
         .await
         .unwrap();
 
-    let items = queries::list_up_next(&pool, utc_tz()).await.unwrap();
+    let items = queries::list_up_next(&pool, &utc_tz()).await.unwrap();
     assert_eq!(items[1].networks, vec!["NBC".to_string()]);
 }
 
@@ -420,7 +416,7 @@ async fn list_up_next_skips_shows_with_no_unwatched_aired_episodes() {
     insert_season(&pool, 1, 1, 1).await;
     insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-5)), true).await;
 
-    let items = queries::list_up_next(&pool, utc_tz()).await.unwrap();
+    let items = queries::list_up_next(&pool, &utc_tz()).await.unwrap();
     assert!(items.is_empty());
 }
 
@@ -501,7 +497,7 @@ async fn bulk_set_watched_all_filters_to_aired_only() {
     insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-1)), false).await;
     insert_episode(&pool, 1, 1, 3, Some(&iso_offset(10)), false).await;
 
-    let affected = queries::bulk_set_watched(&pool, 1, &BulkScope::All, true, utc_tz())
+    let affected = queries::bulk_set_watched(&pool, 1, &BulkScope::All, true, &utc_tz())
         .await
         .unwrap();
     assert_eq!(affected, 2);
@@ -529,7 +525,7 @@ async fn bulk_set_watched_season_scope() {
         1,
         &BulkScope::Season { season_number: 2 },
         true,
-        utc_tz(),
+        &utc_tz(),
     )
     .await
     .unwrap();
@@ -574,7 +570,7 @@ async fn bulk_set_watched_through_episode_inclusive_and_aired_only() {
             episode_number: 2,
         },
         true,
-        utc_tz(),
+        &utc_tz(),
     )
     .await
     .unwrap();
@@ -596,7 +592,7 @@ async fn bulk_set_unwatched_clears_state() {
     insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-2)), true).await;
     insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-1)), true).await;
 
-    queries::bulk_set_watched(&pool, 1, &BulkScope::All, false, utc_tz())
+    queries::bulk_set_watched(&pool, 1, &BulkScope::All, false, &utc_tz())
         .await
         .unwrap();
     let any_watched: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM episodes WHERE watched=1")
@@ -629,7 +625,7 @@ async fn list_watchlist_is_capped() {
         insert_show(&pool, i, &format!("Show {i:04}"), None, None, &[]).await;
     }
 
-    let items = queries::list_watchlist(&pool, utc_tz()).await.unwrap();
+    let items = queries::list_watchlist(&pool, &utc_tz()).await.unwrap();
 
     assert!(
         (items.len() as i64) < OVER_CAP,
@@ -731,7 +727,7 @@ async fn list_up_next_is_capped() {
         insert_episode(&pool, i, 1, 1, Some("2020-01-01"), false).await;
     }
 
-    let items = queries::list_up_next(&pool, utc_tz()).await.unwrap();
+    let items = queries::list_up_next(&pool, &utc_tz()).await.unwrap();
 
     assert!(
         (items.len() as i64) < OVER_CAP,
@@ -750,7 +746,7 @@ async fn small_library_is_returned_in_full_and_in_order() {
         insert_show(&pool, id, name, None, None, &[]).await;
     }
 
-    let items = queries::list_watchlist(&pool, utc_tz()).await.unwrap();
+    let items = queries::list_watchlist(&pool, &utc_tz()).await.unwrap();
 
     assert_eq!(items.len(), 3);
     // ORDER BY name COLLATE NOCASE
@@ -892,7 +888,7 @@ async fn bulk_set_watched_logs_one_entry_with_changed_count() {
         1,
         &BulkScope::Season { season_number: 1 },
         true,
-        utc_tz(),
+        &utc_tz(),
     )
     .await
     .unwrap();
@@ -912,7 +908,7 @@ async fn bulk_set_watched_logs_one_entry_with_changed_count() {
         1,
         &BulkScope::Season { season_number: 1 },
         true,
-        utc_tz(),
+        &utc_tz(),
     )
     .await
     .unwrap();
@@ -936,7 +932,7 @@ async fn bulk_set_watched_preserves_watched_at_on_already_watched() {
     .await
     .unwrap();
 
-    queries::bulk_set_watched(&pool, 1, &BulkScope::All, true, utc_tz())
+    queries::bulk_set_watched(&pool, 1, &BulkScope::All, true, &utc_tz())
         .await
         .unwrap();
 
@@ -964,11 +960,11 @@ async fn bulk_scopes_map_to_log_scopes() {
             episode_number: 1,
         },
         true,
-        utc_tz(),
+        &utc_tz(),
     )
     .await
     .unwrap();
-    queries::bulk_set_watched(&pool, 1, &BulkScope::All, false, utc_tz())
+    queries::bulk_set_watched(&pool, 1, &BulkScope::All, false, &utc_tz())
         .await
         .unwrap();
 
@@ -1088,7 +1084,7 @@ async fn get_show_detail_carries_aired_based_show_counts() {
     insert_episode(&pool, 1, 1, 3, Some(&iso_offset(5)), true).await;
     insert_episode(&pool, 1, 1, 4, None, false).await;
 
-    let detail = queries::get_show_detail(&pool, 1, &today_in(utc_tz()))
+    let detail = queries::get_show_detail(&pool, 1, &today_in(&utc_tz()))
         .await
         .unwrap()
         .unwrap();

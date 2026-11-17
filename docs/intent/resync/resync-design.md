@@ -35,7 +35,15 @@ The steps are separate autocommit statements, not one transaction: `last_synced_
 
 ## Triggers
 
-**Scheduled.** `scheduler::start` (backend/src/scheduler.rs) builds one `tokio-cron-scheduler` job with `Job::new_async_tz(RESYNC_CRON, tz, …)`, so the six-field cron expression fires in `AppState.tz`. An unparseable expression is a startup `AppError::Config("Invalid RESYNC_CRON: …")`. Each fire runs `resync_all` and logs the report; nothing is persisted and nothing in the UI shows the last scheduled outcome. The scheduler handle is held for the process lifetime and never shut down. The cron path does not consult the manual-sync gate, so a cron fire and a manual sync can run concurrently.
+**Scheduled.** `scheduler::start` (backend/src/scheduler.rs) parses `RESYNC_CRON` with `croner` (`parse_cron`: the seconds field is required, and a day-of-month and a day-of-week given together must both match) and spawns one task that loops for the life of the process: compute the next fire time after now in `AppState.tz` (`next_fire`), sleep until it, run the job, repeat. An unparseable expression is a startup `AppError::Config("Invalid RESYNC_CRON: …")`. Each fire runs `resync_all` and logs the report; nothing is persisted and nothing in the UI shows the last scheduled outcome.
+
+The loop (`run_loop`) has three properties the specs pin:
+
+- **One scheduled run at a time.** The next fire time is computed only after the current run returns, so a fire time that passes during a run is skipped rather than queued or run alongside it. A run is bounded by the 100-show ceiling, so in practice this only matters for a schedule tighter than a run is long.
+- **A failed run does not end the schedule.** Each run executes in its own spawned task that the loop awaits; a panic surfaces as a join error, is logged, and the loop goes on to the next fire time.
+- **Daylight saving is the cron library's rule.** Fire times are computed on zone-aware local time: a time of day inside the skipped spring hour fires once at the first local time after the gap (02:30 becomes 03:00 in `America/New_York`), and a time inside the repeated autumn hour fires once, at its first occurrence. Every local day gets exactly one fire of a daily schedule.
+
+The sleep re-reads the wall clock at least once a minute rather than sleeping the whole interval on the monotonic timer, so a host suspend or a clock step moves the fire by at most a minute. The task handle is held for the process lifetime and never shut down. The cron path does not consult the manual-sync gate, so a cron fire and a manual sync can run concurrently.
 
 **Manual.** `manual_sync` (backend/src/api/sync.rs) first calls `sync_gate.try_acquire(MANUAL_SYNC_MIN_INTERVAL)` (60 s, backend/src/state.rs: `MANUAL_SYNC_MIN_INTERVAL`, `RateGate::try_acquire`): check-and-record under one lock, per `AppState` rather than process-global. A second call inside the window is 429 `a sync ran less than 60s ago; try again shortly`. Otherwise it runs `resync_all` and responds 200 with `{ shows_synced, errors: [{ tmdb_id, message }] }`, still 200 when every show failed. The whole run executes inside the perimeter's 30 s request timeout; if cut off, the gate window is already consumed.
 
@@ -49,7 +57,9 @@ The steps are separate autocommit statements, not one transaction: `last_synced_
 | Concurrency | Strictly serial per run | Bounded parallelism | One in-flight TMDB request is the tightest ceiling and needs no machinery (the serial `for id in ids` loop in `resync_all`). |
 | Work per run | At most 100 shows | Unbounded; configurable | The show count is attacker-growable; the ceiling bounds the api-key call multiplier, not normal use (the doc comment on `MAX_SHOWS_PER_RESYNC` in resync.rs). |
 | Manual frequency | 60 s cooldown per `AppState` | Process-global; none | Stops an unauthenticated caller re-applying the ceiling in a loop; per-state keeps tests and future multi-instance setups independent (the doc comment on `RateGate` in state.rs). |
-| Schedule | `RESYNC_CRON` (6-field) evaluated in `TIMEZONE`, default 06:00 daily | UTC; fixed interval | "Nightly" should mean the user's night (the `TIMEZONE` and `RESYNC_CRON` entries in env.example; `Job::new_async_tz` in `scheduler::start`). |
+| Schedule | `RESYNC_CRON` (6-field) evaluated in `TIMEZONE`, default 06:00 daily | UTC; fixed interval | "Nightly" should mean the user's night (the `TIMEZONE` and `RESYNC_CRON` entries in env.example; `next_fire` in backend/src/scheduler.rs). |
+| Scheduling mechanism | `croner` for the cron expression plus one sleep loop on `jiff` zoned time | `tokio-cron-scheduler`; a fixed `tokio::time::interval` | There is one job. A scheduler crate brings a job store and notification machinery for it, and `tokio-cron-scheduler` is built on `chrono` and `chrono-tz`, which RustSec lists as unmaintained and the supply-chain scan rejects. A fixed interval cannot express "06:00 local" across a daylight-saving change. |
+| Fire time passing during a run | Skipped | Run concurrently; queue and run back to back | Two scheduled runs would write the same rows at once and double the TMDB load for no fresher data; a queued run would repeat work just finished. |
 | Failure isolation | Per-show errors collected; run and `/sync` return 200 | Abort on first error | One bad show must not block the rest; the report makes partial outcomes visible. |
 | Error text in the report | `client_message()` | Raw error Display | The `/sync` body is a 200 response, so internal detail must be filtered there too (the `ResyncError` construction in `resync_all`; `AppError::client_message` in backend/src/error.rs). |
 | Specials | Season 0 skipped | Resync everything stored | Mirrors add (the `season_number == 0` skip in `resync_show`). |
@@ -71,7 +81,7 @@ The steps are separate autocommit statements, not one transaction: `last_synced_
 4. **Manual sync under the request timeout.** A library large enough to exceed 30 s gets a 408 while the gate window stays consumed.
 5. **No visibility of scheduled runs.** Outcomes are only logged; Settings shows neither the schedule, the timezone, nor the last result.
 6. **Shape duplication.** `SyncError` / `SyncResponse` duplicate `ResyncError` / `ResyncReport` field for field (backend/src/api/sync.rs vs backend/src/logic/resync.rs).
-7. **Scheduler lifetime.** Held as `_scheduler` and never shut down (the `_scheduler` binding in `run`, backend/src/lib.rs).
+7. **Scheduler lifetime.** The loop's task handle is held as `_scheduler` and never shut down (the `_scheduler` binding in `run`, backend/src/lib.rs).
 
 ## References
 

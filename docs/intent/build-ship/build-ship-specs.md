@@ -23,8 +23,9 @@ Prefix `SHIP`. Facets: `IMAGE` (Dockerfile and compose), `CI` (merge gates), `SU
 
 - [x] **SHIP-SUPPLY-001**: The supply-chain scan shall install frontend dependencies with `npm ci --ignore-scripts`, verify npm registry signatures with `npm audit signatures`, run a Socket Security scan of the frontend when the API key secret is present and skip it otherwise, and scan both lockfiles with OSV.
 - [x] **SHIP-SUPPLY-002**: When the supply-chain scan runs for a pull request, it shall scan the base branch's lockfiles and the pull request's lockfiles, fail if either scan produced no results, fail only on vulnerabilities the pull request introduces, and shall not run `cargo audit`.
-- [x] **SHIP-SUPPLY-003**: When the supply-chain scan runs for a push to `main` or on a schedule, it shall scan the repository's lockfiles with OSV in absolute mode and run `cargo audit` on the backend, and shall fail on any known vulnerability either reports.
+- [x] **SHIP-SUPPLY-003**: When the supply-chain scan runs for a push to `main` or on a schedule, it shall scan the repository's lockfiles with OSV in absolute mode and run `cargo audit` on the backend, and shall fail on any known vulnerability either reports unless the advisory is listed in that lockfile's ignore list (`osv-scanner.toml` beside the lockfile for OSV, `backend/.cargo/audit.toml` for `cargo audit`).
 - [x] **SHIP-SUPPLY-004**: Renovate shall pin Docker images and GitHub Actions by digest, group all Docker base images into a single pull request, group minor and patch updates into a single pull request auto-merged after a 3-day release age, auto-merge digest updates after a 1-day release age, never auto-merge major updates, and run lockfile maintenance weekly.
+- [x] **SHIP-SUPPLY-005**: Every entry in `backend/osv-scanner.toml` shall carry a non-empty `reason` and an `effectiveUntil` date, and every advisory ignored in `backend/.cargo/audit.toml` shall also be an entry in `backend/osv-scanner.toml`, so that no backend advisory is ignored without a stated reason and an expiry after which the absolute scan fails again.
 
 ## Release
 

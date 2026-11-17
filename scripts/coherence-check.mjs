@@ -12,8 +12,9 @@
  * Checks:
  *   1. @spec annotation integrity (reverse orphans, uncovered gaps)
  *   2. Citation coverage: every [x] spec cited in code and in a test, per the
- *      HLD's Annotation Conventions. Rust `#[cfg(test)]` modules and
- *      `*.test.ts(x)` / backend/tests files count as tests; a CI workflow step
+ *      HLD's Annotation Conventions. Rust `#[cfg(test)]` modules (inline, or
+ *      split out as `<module>/tests.rs`) and `*.test.ts(x)` / backend/tests
+ *      files count as tests; a CI workflow step
  *      counts as both the behavior and its check.
  *   3. Arrow reference integrity (broken file references in arrow docs)
  *   4. Arrow staleness (audited >30 days ago; MAPPED status)
@@ -69,6 +70,8 @@ function collectSpecIdsFromCode() {
   function sideOf(file, lineNum) {
     if (file.startsWith('.github/workflows/')) return 'both';
     if (file.startsWith('backend/tests/') || /\.test\.tsx?$/.test(file)) return 'test';
+    // A `#[cfg(test)] mod tests;` declared in foo.rs lives in foo/tests.rs.
+    if (/^backend\/src\/.*\/tests\.rs$/.test(file)) return 'test';
     if (file.endsWith('.rs')) {
       if (!cfgTestLine.has(file)) {
         const src = readFile(join(ROOT, file)) || '';

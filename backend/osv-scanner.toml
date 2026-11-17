@@ -1,0 +1,13 @@
+# OSV-Scanner ignore list for backend/Cargo.lock.
+# Format: https://google.github.io/osv-scanner/configuration/
+#
+# Per-lockfile: applies only to advisories found in the sibling Cargo.lock.
+# Every entry needs an id, an effectiveUntil date, and a reason; the scan fails
+# again once the date passes. Any id ignored for cargo audit in
+# .cargo/audit.toml must also be listed here (backend/tests/supply_chain.rs).
+# @spec SHIP-SUPPLY-003, SHIP-SUPPLY-005
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0459"
+effectiveUntil = 2027-01-15
+reason = "SQLite CVE-2026-119375 in the SQLite bundled by libsqlite3-sys < 0.39.0. No upgrade is available: sqlx 0.9.0, the latest release, requires libsqlite3-sys < 0.38.0; remove this entry when a sqlx release allows 0.39. Exploiting it needs a crafted database and -wal file pair, and the only database this process opens is its own file in the data volume, which nothing less trusted can write."

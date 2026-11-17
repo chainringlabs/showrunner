@@ -275,7 +275,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     let tmdb = TmdbClient::new(config.tmdb_api_key.clone());
 
-    let state = AppState::new(pool, tmdb, config.timezone);
+    let state = AppState::new(pool, tmdb, config.timezone.clone());
 
     let _scheduler = scheduler::start(state.clone(), config.schedule.clone()).await?;
 
@@ -302,7 +302,7 @@ pub async fn run() -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use crate::config::{ScheduleConfig, ServerConfig};
-    use chrono_tz::UTC;
+    use jiff::tz::TimeZone;
     use serial_test::serial;
 
     // @spec APP-CONFIG-005
@@ -337,7 +337,7 @@ mod tests {
             schedule: ScheduleConfig {
                 resync_cron: "0 0 6 * * *".into(),
             },
-            timezone: UTC,
+            timezone: TimeZone::UTC,
         }
     }
 

@@ -1,6 +1,4 @@
-use std::str::FromStr;
-
-use chrono_tz::Tz;
+use jiff::tz::{TimeZone, TimeZoneDatabase};
 
 use crate::error::{AppError, Result};
 
@@ -10,7 +8,7 @@ pub struct Config {
     pub database_url: String,
     pub tmdb_api_key: String,
     pub schedule: ScheduleConfig,
-    pub timezone: Tz,
+    pub timezone: TimeZone,
 }
 
 #[derive(Debug, Clone)]
@@ -26,7 +24,7 @@ pub struct ScheduleConfig {
 }
 
 impl Config {
-    // @spec RESYNC-TRIGGER-001, APP-CONFIG-001, APP-CONFIG-002
+    // @spec RESYNC-TRIGGER-001, APP-CONFIG-001, APP-CONFIG-002, APP-CONFIG-006
     pub fn from_env() -> Result<Self> {
         let host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
         let port: u16 = std::env::var("SERVER_PORT")
@@ -48,7 +46,8 @@ impl Config {
             std::env::var("RESYNC_CRON").unwrap_or_else(|_| "0 0 6 * * *".to_string());
 
         let tz_name = std::env::var("TIMEZONE").unwrap_or_else(|_| "America/New_York".to_string());
-        let timezone = Tz::from_str(&tz_name).map_err(|_| {
+        // The database compiled into the binary, never the host's zone files.
+        let timezone = TimeZoneDatabase::bundled().get(&tz_name).map_err(|_| {
             AppError::Config(format!(
                 "TIMEZONE '{}' is not a valid IANA zone (e.g. America/New_York, Europe/London)",
                 tz_name
@@ -112,7 +111,7 @@ mod tests {
         assert_eq!(cfg.database_url, "sqlite:///data/showrunner.db");
         assert_eq!(cfg.tmdb_api_key, "abc");
         assert_eq!(cfg.schedule.resync_cron, "0 0 6 * * *");
-        assert_eq!(cfg.timezone.name(), "America/New_York");
+        assert_eq!(cfg.timezone.iana_name(), Some("America/New_York"));
     }
 
     // @spec RESYNC-TRIGGER-001, APP-CONFIG-001
@@ -137,7 +136,21 @@ mod tests {
         );
         assert_eq!(cfg.database_url, "sqlite::memory:");
         assert_eq!(cfg.schedule.resync_cron, "0 30 5 * * *");
-        assert_eq!(cfg.timezone.name(), "Europe/London");
+        assert_eq!(cfg.timezone.iana_name(), Some("Europe/London"));
+    }
+
+    // @spec APP-CONFIG-006
+    #[test]
+    #[serial]
+    fn timezone_resolves_from_the_database_compiled_into_the_binary() {
+        // Empty unless the bundle is compiled in; a host's zone files would
+        // not make this pass.
+        assert!(!TimeZoneDatabase::bundled().is_definitively_empty());
+        clear_env();
+        set("TMDB_API_KEY", "k");
+        set("TIMEZONE", "Pacific/Kiritimati");
+        let cfg = Config::from_env().unwrap();
+        assert_eq!(cfg.timezone.iana_name(), Some("Pacific/Kiritimati"));
     }
 
     // @spec APP-CONFIG-002

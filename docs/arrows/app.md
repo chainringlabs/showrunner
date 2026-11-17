@@ -4,7 +4,7 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 35 specs are implemented, annotated in code, and cited by at least one test; what remains open is the small design items the LLD lists as deferred.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 37 specs are implemented, annotated in code, and cited by at least one test; what remains open is the small design items the LLD lists as deferred.
 
 ## References
 
@@ -15,14 +15,15 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 - docs/intent/app/app-design.md
 
 ### EARS
-- docs/intent/app/app-specs.md (35 specs: 35 implemented, 0 deferred, 0 active gaps)
+- docs/intent/app/app-specs.md (37 specs: 37 implemented, 0 deferred, 0 active gaps)
 
 ### Tests
-- backend/src/config.rs inline tests — `defaults_apply_when_only_required_vars_set`, `overrides_pick_up_env_vars`, `missing_tmdb_api_key_fails`, `empty_tmdb_api_key_fails`, `invalid_port_fails`, `invalid_timezone_fails`, `empty_optional_vars_treated_as_absent`
+- backend/src/config.rs inline tests — `defaults_apply_when_only_required_vars_set`, `overrides_pick_up_env_vars`, `missing_tmdb_api_key_fails`, `empty_tmdb_api_key_fails`, `invalid_port_fails`, `invalid_timezone_fails`, `timezone_resolves_from_the_database_compiled_into_the_binary`, `empty_optional_vars_treated_as_absent`
 - backend/src/db/pool.rs inline tests — `create_pool_runs_migrations_on_memory_db`, `create_pool_uses_default_max_connections_when_env_invalid`
 - backend/src/error.rs inline tests — `not_found_maps_to_404_with_message`, `invalid_data_maps_to_400`, `config_maps_to_500_with_message`, `upstream_maps_to_502`, `database_error_hidden_from_response_body`
 - backend/src/lib.rs inline tests — `log_filter_defaults_to_info_when_rust_log_is_unset`, `log_filter_honours_rust_log`, `cors_invalid_origin_panics`, `security_headers_are_applied_to_responses`
-- backend/src/scheduler.rs inline tests — `start_returns_config_error_for_invalid_cron`
+- backend/src/scheduler/tests.rs — `start_returns_config_error_for_invalid_cron`
+- backend/src/state.rs inline tests — `stored_timestamps_are_utc_with_nine_digits_and_a_plus_offset`, `the_plus_offset_form_sorts_as_text_across_fractional_precisions`
 - backend/tests/api.rs — `health_returns_ok_when_db_responsive`, `health_returns_503_degraded_when_db_unreachable`, `form_encoded_post_to_sync_is_rejected`, `text_plain_post_to_sync_is_rejected`, `json_suffix_and_charset_parameter_are_accepted`, `get_requests_are_unaffected_by_the_content_type_gate`, `wildcard_branch_grants_no_more_than_the_named_origin_branch`, `wildcard_cors_does_not_expose_all_response_headers`, `wildcard_cors_never_allows_credentials`, `wildcard_cors_still_allows_any_origin_with_the_explicit_method_list`, `named_origin_branch_still_denies_other_origins`, `api_routes_live_only_under_the_v1_prefix`, `request_bodies_over_one_mebibyte_are_rejected_with_413`, `the_sixty_fifth_in_flight_request_is_shed_with_503`, `requests_running_past_thirty_seconds_get_408`, `static_fallback_serves_index_for_unknown_paths_but_not_for_api_paths`, `missing_static_dir_leaves_the_app_api_only`
 - backend/tests/healthcheck.rs (4 tests, all on the `--healthcheck` probe)
 - frontend/src/App.test.tsx (7 tests, one per route except `/movies` and `/movies/:tmdbId`)
@@ -37,6 +38,8 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 - backend/src/lib.rs — `with_security_headers`, `require_json_content_type`, `build_api_router`, `build_cors_layer`, `log_filter`, `with_static_fallback`, `run`
 - backend/src/main.rs — `main` (the `--healthcheck` dispatch)
 - backend/src/config.rs — `Config::from_env`
+- backend/src/state.rs — `now_utc_rfc3339`, `format_utc_rfc3339`
+- backend/Cargo.toml — the `jiff` dependency with `tzdb-bundle-always` (`APP-CONFIG-006`)
 - backend/src/db/pool.rs — `create_pool`
 - backend/src/error.rs — `AppError::client_message`, `AppError::into_response`
 - backend/src/api/health.rs — `health_check`, `probe`, `probe_from_env`
@@ -68,13 +71,14 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 
 | Category | Spec IDs | Implemented | Deferred | Gaps |
 |----------|----------|-------------|----------|------|
-| Config | APP-CONFIG-001 to 005 | 5 | 0 | 0 |
+| Config | APP-CONFIG-001 to 006 | 6 | 0 | 0 |
+| Time | APP-TIME-001 | 1 | 0 | 0 |
 | HTTP | APP-HTTP-001 to 008 | 8 | 0 | 0 |
 | Errors | APP-ERR-001 to 002 | 2 | 0 | 0 |
 | Health | APP-HEALTH-001 to 003 | 3 | 0 | 0 |
 | SPA | APP-SPA-001 to 017 | 17 | 0 | 0 |
 
-**Summary:** 35 of 35 active specs implemented; 0 deferred. (Specs with no test citation: none.)
+**Summary:** 37 of 37 active specs implemented; 0 deferred. (Specs with no test citation: none.)
 
 ## Key Findings
 

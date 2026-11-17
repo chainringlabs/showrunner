@@ -5,7 +5,7 @@
 
 #![allow(dead_code)]
 
-use chrono_tz::Tz;
+use jiff::tz::TimeZone;
 use showrunner_backend::datasources::tmdb::TmdbClient;
 use showrunner_backend::state::AppState;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
@@ -30,16 +30,28 @@ pub async fn test_pool() -> SqlitePool {
     pool
 }
 
-pub fn ny_tz() -> Tz {
-    "America/New_York".parse().unwrap()
+pub fn ny_tz() -> TimeZone {
+    TimeZone::get("America/New_York").unwrap()
 }
 
-pub fn utc_tz() -> Tz {
-    "UTC".parse().unwrap()
+pub fn utc_tz() -> TimeZone {
+    TimeZone::UTC
+}
+
+/// Today's UTC date shifted by `days`, as `YYYY-MM-DD`.
+pub fn iso_offset(days: i64) -> String {
+    utc_today()
+        .checked_add(jiff::Span::new().days(days))
+        .unwrap()
+        .to_string()
+}
+
+pub fn utc_today() -> jiff::civil::Date {
+    jiff::Timestamp::now().to_zoned(TimeZone::UTC).date()
 }
 
 /// AppState wired with a real pool and a TMDB client pointed at `tmdb_base`.
-pub fn app_state(pool: SqlitePool, tmdb_base: String, tz: Tz) -> AppState {
+pub fn app_state(pool: SqlitePool, tmdb_base: String, tz: TimeZone) -> AppState {
     let tmdb = TmdbClient::with_base_url("test_key".into(), tmdb_base);
     AppState::new(pool, tmdb, tz)
 }
