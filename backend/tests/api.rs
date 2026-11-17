@@ -5,7 +5,6 @@ mod common;
 
 use axum::body::{to_bytes, Body};
 use axum::http::{Method, Request, StatusCode};
-use chrono::{Duration, Utc};
 use http_body_util::BodyExt;
 use serde_json::Value;
 use showrunner_backend::db::queries;
@@ -21,10 +20,6 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 use crate::common::*;
 
 const BODY_LIMIT: usize = 16 * 1024 * 1024;
-
-fn iso_offset(days: i64) -> String {
-    (Utc::now().date_naive() + Duration::days(days)).to_string()
-}
 
 async fn body_to_value(resp: axum::response::Response) -> Value {
     let bytes = to_bytes(resp.into_body(), BODY_LIMIT).await.unwrap();
@@ -643,7 +638,7 @@ async fn calendar_reports_the_servers_today_in_the_configured_timezone() {
     for tz in [utc_tz(), ny_tz()] {
         let pool = test_pool().await;
         let tmdb_server = MockServer::start().await;
-        let state = app_state(pool, tmdb_server.uri(), tz);
+        let state = app_state(pool, tmdb_server.uri(), tz.clone());
         let resp = build_api_router(state)
             .oneshot(empty_request(
                 Method::GET,
@@ -655,8 +650,9 @@ async fn calendar_reports_the_servers_today_in_the_configured_timezone() {
         let v = body_to_value(resp).await;
         assert_eq!(
             v["today"],
-            today_in(tz),
-            "today must follow the configured zone ({tz})"
+            today_in(&tz),
+            "today must follow the configured zone ({:?})",
+            tz.iana_name()
         );
     }
 }
@@ -1005,11 +1001,11 @@ async fn delete_movie_removes_and_returns_204() {
 
 // ===== VULN-004 (CWE-1289) — calendar 92-day cap bypass =====
 //
-// The handler validated the parsed NaiveDate but bound the raw query string to
-// SQL. chrono accepts a signed, unbounded-width year, so `+009999-10-01` parses
-// as 9999-10-01 and passes the span check, while SQLite compares the literal
-// `+009999-10-01` bytewise against TEXT air_dates — and '+' (0x2B) sorts below
-// '0' (0x30), so the lower bound under-runs every stored date.
+// SQLite compares `air_date` bytewise as TEXT, so a query string that parses to
+// a date but is not in canonical zero-padded form must never be bound as given:
+// `+009999-10-01` would sort below every stored date ('+' is 0x2B, '0' is 0x30)
+// and under-run the lower bound. Signed and over-long years are rejected at
+// parse; other non-canonical forms are normalized before binding.
 
 async fn seed_calendar_spread(pool: &SqlitePool) {
     insert_show(pool, 1, "Show", None, None, &[]).await;
@@ -1035,25 +1031,33 @@ async fn get_calendar(
     (status, body_to_value(resp).await)
 }
 
-// @spec AIRING-CAL-004
+// @spec AIRING-CAL-001
 #[tokio::test]
-async fn calendar_signed_year_does_not_bypass_the_92_day_cap() {
+async fn calendar_signed_or_overlong_year_is_rejected() {
     let app = build_app().await;
     seed_calendar_spread(&app.pool).await;
 
     let (status, v) = get_calendar(app.state.clone(), "start=%2B009999-10-01&end=9999-12-31").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(v["error"], "invalid start date: +009999-10-01");
 
-    // A signed year parses, so the request is well-formed and the window is
-    // inside the cap; what must not happen is the raw string reaching SQL and
-    // sorting below every stored date, which would return the whole spread.
+    let (status, v) = get_calendar(app.state.clone(), "start=2026-01-01&end=12026-01-02").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(v["error"], "invalid end date: 12026-01-02");
+}
+
+// @spec AIRING-CAL-004
+#[tokio::test]
+async fn calendar_leading_space_is_normalized_before_it_reaches_sql() {
+    let app = build_app().await;
+    seed_calendar_spread(&app.pool).await;
+
+    // A leading space parses; bound as given it would sort below every digit.
+    let query = format!("start=%20{}&end={}", iso_offset(-10), iso_offset(10));
+    let (status, v) = get_calendar(app.state.clone(), &query).await;
+
     assert_eq!(status, StatusCode::OK);
-    let episodes = v["episodes"].as_array().unwrap();
-    assert_eq!(
-        episodes.len(),
-        0,
-        "a far-future window returned {} episodes — the raw string reached SQL",
-        episodes.len()
-    );
+    assert_eq!(v["episodes"].as_array().unwrap().len(), 1);
 }
 
 // @spec AIRING-CAL-004
@@ -1062,18 +1066,18 @@ async fn calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql() {
     let app = build_app().await;
     seed_calendar_spread(&app.pool).await;
 
-    let today = Utc::now().date_naive();
-    let start = today - Duration::days(10);
-    let end = today + Duration::days(10);
-    // chrono parses a single-digit month/day; SQLite would compare it bytewise.
+    let today = utc_today();
+    let start = today.checked_sub(jiff::Span::new().days(10)).unwrap();
+    let end = today.checked_add(jiff::Span::new().days(10)).unwrap();
+    // A single-digit month or day parses; SQLite would compare it bytewise.
     let query = format!(
         "start={}-{}-{}&end={}-{}-{}",
-        start.format("%Y"),
-        start.format("%-m"),
-        start.format("%-d"),
-        end.format("%Y"),
-        end.format("%-m"),
-        end.format("%-d")
+        start.year(),
+        start.month(),
+        start.day(),
+        end.year(),
+        end.month(),
+        end.day()
     );
 
     let (status, v) = get_calendar(app.state.clone(), &query).await;

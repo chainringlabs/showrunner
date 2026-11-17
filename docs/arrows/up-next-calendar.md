@@ -19,7 +19,7 @@ The two aired-episode views: Up Next (per show, the oldest unwatched aired episo
 
 ### Tests
 - backend/tests/db.rs — `list_up_next_picks_oldest_unwatched_aired_per_show`, `list_up_next_includes_networks_and_resync_backfills_them`, `list_up_next_skips_shows_with_no_unwatched_aired_episodes`, `list_up_next_is_capped`, `list_calendar_episodes_filters_by_range`
-- backend/tests/api.rs — `up_next_returns_oldest_unwatched_per_show`, `calendar_returns_episodes_in_range`, `calendar_rejects_invalid_dates`, `calendar_rejects_inverted_range`, `calendar_rejects_range_exceeding_92_days`, `calendar_signed_year_does_not_bypass_the_92_day_cap`, `calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql`, `calendar_ordinary_range_still_returns_the_in_window_episode`
+- backend/tests/api.rs — `up_next_returns_oldest_unwatched_per_show`, `calendar_returns_episodes_in_range`, `calendar_rejects_invalid_dates`, `calendar_rejects_inverted_range`, `calendar_rejects_range_exceeding_92_days`, `calendar_signed_or_overlong_year_is_rejected`, `calendar_leading_space_is_normalized_before_it_reaches_sql`, `calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql`, `calendar_ordinary_range_still_returns_the_in_window_episode`
 - frontend/src/pages/UpNext.test.tsx (13 tests)
 - frontend/src/pages/Calendar.test.tsx (21 tests, including the narrow-width agenda list)
 - frontend/src/styles.test.ts — the Up Next row test cites AIRING-UPNEXT-013
@@ -56,11 +56,10 @@ The two aired-episode views: Up Next (per show, the oldest unwatched aired episo
 ## Key Findings
 
 1. **The calendar query is the only uncapped list** — `queries.rs:list_calendar_episodes` has no `LIMIT`; the 92-day window in `calendar.rs:get_calendar` is its sole bound. LLD Deferred 1.
-2. **Malformed-date contract is unpinned** — `api.rs:calendar_signed_year_does_not_bypass_the_92_day_cap` and `api.rs:calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql` branch on the status code, accepting either normalization (200) or rejection (400). LLD Deferred 2.
-3. **Duplicate fetch implementations on Up Next** — `UpNext.tsx:load` and the mount effect in `UpNext.tsx:UpNext` make the same call; only the effect carries the `cancelled` guard, and a failed post-mark re-fetch shows an error over stale rows. LLD Deferred 3.
-4. **Overflowing cells clip silently** — `.calendar-eps` (frontend/src/index.css) sets `overflow: hidden`, so a day with many episodes drops chips without an indicator. LLD Deferred 4.
-5. **Network pill key is the name** — `UpNext.tsx:UpNext` keys each `network-pill` by the network string; duplicates would collide. LLD Deferred 5.
-6. **English-only, Sunday-first, raw ISO dates** throughout both pages (`Calendar.tsx` `MONTHS`/`WEEKDAYS` literals, `aired <air_date>` in `UpNext.tsx`). LLD Deferred 6.
+2. **Duplicate fetch implementations on Up Next** — `UpNext.tsx:load` and the mount effect in `UpNext.tsx:UpNext` make the same call; only the effect carries the `cancelled` guard, and a failed post-mark re-fetch shows an error over stale rows. LLD Deferred 2.
+3. **Overflowing cells clip silently** — `.calendar-eps` (frontend/src/index.css) sets `overflow: hidden`, so a day with many episodes drops chips without an indicator. LLD Deferred 3.
+4. **Network pill key is the name** — `UpNext.tsx:UpNext` keys each `network-pill` by the network string; duplicates would collide. LLD Deferred 4.
+5. **English-only, Sunday-first, raw ISO dates** throughout both pages (`Calendar.tsx` `MONTHS`/`WEEKDAYS` literals, `aired <air_date>` in `UpNext.tsx`). LLD Deferred 5.
 
 ## Work Required
 

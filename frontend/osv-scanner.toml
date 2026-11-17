@@ -3,9 +3,9 @@
 #
 # This file is per-lockfile: it only applies to vulnerabilities found in
 # the sibling lockfile (frontend/package-lock.json). Add per-vuln entries
-# under [[IgnoredVulns]] with id, ignoreUntil, and a reason.
+# under [[IgnoredVulns]] with id, effectiveUntil, and a reason.
 #
 # [[IgnoredVulns]]
 # id = "GHSA-xxxx-xxxx-xxxx"
-# ignoreUntil = 2026-12-31
+# effectiveUntil = 2026-12-31
 # reason = "No upstream fix; not exploitable in our usage."

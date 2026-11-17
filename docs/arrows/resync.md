@@ -4,7 +4,7 @@ Keeping show metadata current from TMDB without touching watched state: the per-
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 21 specs are implemented, annotated in code, and cited by at least one test; what remains open is the LLD's deferred list (overlapping runs, non-transactional per-show resync, stale rows, the 30 s manual timeout, no visibility of scheduled runs).
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 24 specs are implemented, annotated in code, and cited by at least one test; what remains open is the LLD's deferred list (overlapping runs, non-transactional per-show resync, stale rows, the 30 s manual timeout, no visibility of scheduled runs).
 
 ## References
 
@@ -15,13 +15,13 @@ Keeping show metadata current from TMDB without touching watched state: the per-
 - docs/intent/resync/resync-design.md
 
 ### EARS
-- docs/intent/resync/resync-specs.md (21 specs: 21 implemented, 0 deferred, 0 active gaps)
+- docs/intent/resync/resync-specs.md (24 specs: 24 implemented, 0 deferred, 0 active gaps)
 
 ### Tests
 - backend/tests/logic.rs — `resync_show_updates_metadata_and_episodes_preserving_watched`, `resync_show_skips_season_zero`, `resync_all_reports_per_show_success_and_failure`, `resync_all_with_no_shows_is_a_noop`, `resync_all_caps_shows_per_run`, `resync_all_below_the_ceiling_still_syncs_everything`, `resync_all_rotates_through_every_eligible_show_across_runs`, `resync_all_skips_recently_synced_ended_shows`, `resync_show_never_deletes_seasons_or_episodes_tmdb_dropped`, `resync_all_never_touches_movies`, `resync_all_warns_with_counts_when_the_ceiling_skips_shows`
 - backend/tests/db.rs — `upsert_show_metadata_updates_existing`, `upsert_season_inserts_then_updates_on_conflict`, `upsert_episode_preserves_watched_state`, `list_resync_candidates_applies_status_and_slow_lane_rules`, `list_resync_candidates_orders_by_last_synced_then_name`
 - backend/tests/api.rs — `sync_returns_per_show_results`, `repeated_sync_within_the_cooldown_is_rejected`, `cooldown_is_per_app_state_not_process_global`, `sync_collapses_internal_errors_in_the_per_show_message` (the content-type gate on `/sync` is tested there too, under `app`'s IDs)
-- backend/src/scheduler.rs inline tests — `start_succeeds_with_valid_cron_and_returns_scheduler`, `start_returns_config_error_for_invalid_cron`
+- backend/src/scheduler/tests.rs — `start_succeeds_with_valid_cron_and_returns_the_running_task`, `start_returns_config_error_for_invalid_cron`, `the_default_and_every_documented_schedule_parse`, `a_five_field_or_empty_expression_is_a_config_error_naming_the_variable`, `fire_times_are_evaluated_in_the_configured_timezone`, `a_time_in_the_skipped_hour_fires_once_after_the_gap`, `a_time_in_the_repeated_hour_fires_once_at_its_first_occurrence`, `a_fire_time_that_passes_during_a_run_is_skipped`, `a_panicking_run_does_not_stop_the_schedule`
 - backend/src/config.rs inline tests — `defaults_apply_when_only_required_vars_set`, `overrides_pick_up_env_vars`
 - frontend/src/pages/Settings.test.tsx (5 tests)
 - frontend/src/api/client.test.ts — `sync hits POST /sync`
@@ -29,7 +29,7 @@ Keeping show metadata current from TMDB without touching watched state: the per-
 ### Code
 - backend/src/logic/resync.rs — `resync_show`, `resync_all` (and `MAX_SHOWS_PER_RESYNC`, `ResyncReport`, `ResyncError`)
 - backend/src/db/queries.rs — `upsert_show_metadata`, `upsert_season`, `upsert_episode_preserving_watched`, `list_resync_candidates` (and `ENDED_SHOW_RESYNC_DAYS`)
-- backend/src/scheduler.rs — `start`
+- backend/src/scheduler.rs — `start`, `parse_cron`, `next_fire`, `run_loop`
 - backend/src/api/sync.rs — `manual_sync` (and `SyncResponse`, `SyncError`)
 - backend/src/state.rs — `RateGate::try_acquire`, `AppState::new` (and `MANUAL_SYNC_MIN_INTERVAL`)
 - backend/src/config.rs — `Config::from_env` (`ScheduleConfig.resync_cron` from `RESYNC_CRON`)
@@ -44,7 +44,7 @@ Keeping show metadata current from TMDB without touching watched state: the per-
 **Key Components:**
 1. Upsert chain — show `UPDATE`, season and episode `ON CONFLICT DO UPDATE`; the episode SET list omits `watched` and `watched_at`.
 2. `resync_all` — eligible shows (status not `Ended`/`Canceled`, or any show unsynced for 30 days) least-recently-synced first, serial loop over at most 100 with per-show error capture.
-3. Triggers — `tokio-cron-scheduler` job in the configured timezone; `POST /sync` behind a 60 s per-state gate.
+3. Triggers — a `croner` expression fired by one sleep loop in the configured timezone, one scheduled run at a time; `POST /sync` behind a 60 s per-state gate.
 4. Settings page — the one manual control and its per-show result list.
 
 ## Spec Coverage
@@ -53,10 +53,10 @@ Keeping show metadata current from TMDB without touching watched state: the per-
 |----------|----------|-------------|----------|------|
 | Show | RESYNC-SHOW-001 to 005 | 5 | 0 | 0 |
 | Run | RESYNC-RUN-001 to 006 | 6 | 0 | 0 |
-| Trigger | RESYNC-TRIGGER-001 to 006 | 6 | 0 | 0 |
+| Trigger | RESYNC-TRIGGER-001 to 009 | 9 | 0 | 0 |
 | UI | RESYNC-UI-001 to 004 | 4 | 0 | 0 |
 
-**Summary:** 21 of 21 active specs implemented; 0 deferred. (Specs with no test citation: none.)
+**Summary:** 24 of 24 active specs implemented; 0 deferred. (Specs with no test citation: none.)
 
 ## Key Findings
 

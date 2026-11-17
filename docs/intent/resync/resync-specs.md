@@ -27,6 +27,9 @@ Prefix `RESYNC`. Facets: `SHOW` (what one show's resync does), `RUN` (a full run
 - [x] **RESYNC-TRIGGER-004**: If `POST /api/v1/sync` is called within 60 seconds of a previous manual sync starting on the same server instance, then the system shall respond 429 with the error `a sync ran less than 60s ago; try again shortly` and start no resync.
 - [x] **RESYNC-TRIGGER-005**: The manual-sync cooldown shall be tracked per application state instance, not process-globally, and the check-and-record shall be atomic so concurrent callers cannot both pass.
 - [x] **RESYNC-TRIGGER-006**: Each `message` in the `POST /api/v1/sync` response shall be the client-safe form of the error, collapsing database, HTTP, IO, and JSON errors to `An internal error occurred`.
+- [x] **RESYNC-TRIGGER-007**: While a scheduled resync is running, the system shall start no other scheduled resync: a `RESYNC_CRON` fire time that passes during the run is skipped, and the next scheduled resync starts at the first fire time after the run ends.
+- [x] **RESYNC-TRIGGER-008**: If a scheduled resync panics, then the system shall log the failure and still fire at the following `RESYNC_CRON` times.
+- [x] **RESYNC-TRIGGER-009**: Where a `RESYNC_CRON` time of day falls in the hour a daylight-saving transition in `TIMEZONE` skips, the scheduled resync shall fire once that day, at the first local time after the skipped hour; where it falls in the hour a transition repeats, the scheduled resync shall fire once that day, at the first occurrence.
 
 ## UI
 

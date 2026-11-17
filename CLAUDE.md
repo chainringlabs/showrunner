@@ -10,7 +10,8 @@ Containerized web app for tracking TV shows watched across cable and streaming p
 - Frontend: React 19 + TypeScript + Vite
 - Database: SQLite (volume-mounted)
 - External Data: TMDB API
-- Async Runtime: Tokio + tokio-cron-scheduler
+- Async Runtime: Tokio; resync schedule via croner + a sleep loop
+- Dates and times: jiff (tz database compiled into the binary)
 - Deployment: Docker Compose (single app container, SQLite file in named volume)
 
 ## Commands
@@ -50,7 +51,7 @@ showrunner/
 │       ├── models/              # Data structures
 │       ├── logic/               # resync (the scheduler body)
 │       ├── datasources/         # TMDB client
-│       └── scheduler.rs         # tokio-cron-scheduler (resync)
+│       └── scheduler.rs         # cron-driven resync loop (croner + jiff)
 ├── frontend/
 │   └── src/
 │       ├── App.tsx              # React Router
@@ -94,8 +95,8 @@ showrunner/
 - **Secrets never reach clients or logs** — outbound TMDB URLs carry the `api_key` query param. `From<reqwest::Error>` strips the URL via `.without_url()`, and `AppError::client_message()` collapses internal variants (DB/HTTP/IO/JSON) to a generic string wherever an error is serialized into a response body (`IntoResponse`, and the per-item results of `/sync`).
 - **Resync preserves user state** — `upsert_episode_preserving_watched` uses `ON CONFLICT … DO UPDATE` that writes the new TMDB metadata but **never** touches `watched`/`watched_at`.
 - **Bulk-watch scopes** — three actions: mark whole show, mark season N, mark through episode SxEy. All filter to aired episodes (`air_date <= today`) so accidental marks don't apply to future airings. Single-episode `PATCH` does no filtering — escape hatch.
-- **Configurable schedule** — `RESYNC_CRON` (cron expr, fires in `TIMEZONE`) drives `tokio-cron-scheduler`.
-- **Local timezone for "today"** — `Config.timezone` (default `America/New_York`, override via `TIMEZONE`) is plumbed through `AppState.tz` to all date-comparison queries (`list_watchlist`, `bulk_set_watched`, `list_up_next`) and to the cron scheduler. Stored timestamps (`watched_at`, `last_synced_at`) remain UTC RFC3339.
+- **Configurable schedule** — `RESYNC_CRON` (cron expr, fires in `TIMEZONE`) drives the loop in `scheduler.rs`: one scheduled run at a time (a fire time that passes during a run is skipped), a panicking run doesn't end the schedule, and a daily schedule fires once per local day across daylight-saving changes.
+- **Local timezone for "today"** — `Config.timezone` (default `America/New_York`, override via `TIMEZONE`) is plumbed through `AppState.tz` to all date-comparison queries (`list_watchlist`, `bulk_set_watched`, `list_up_next`) and to the cron scheduler. Stored timestamps (`watched_at`, `last_synced_at`) remain UTC RFC3339, all written by `now_utc_rfc3339` with a `+00:00` offset (never `Z`) because lists sort those columns as text. `TIMEZONE` resolves against the tz database compiled into the binary, not the host's.
 - **Calendar** — full month grid, episodes shown by air date. Watched episodes get faded styling.
 - **Up Next** — per-show earliest unwatched aired episode, sorted by air_date ASC (longest-overdue first). SQL uses `ROW_NUMBER() OVER (PARTITION BY show ORDER BY air_date)`. Each row shows the show's networks as pills (TMDB `networks` — broadcast/cable channels and streaming originals alike — stored in `shows.networks_json`, written on add and refreshed by resync) so it's obvious where to go watch. Watch providers are deliberately not shown here: TMDB's provider list is too noisy to read at a glance. Each row also carries an `N remaining` pill counting **aired** unwatched episodes only (same `air_date <= today` filter, never future airings); it switches to the indigo `status-pill-accent` style when N > 1 so being several weeks behind is obvious.
 - **Progress display** — `12/27` format (watched / aired), no percentage.

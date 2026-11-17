@@ -1,5 +1,4 @@
-use chrono::Utc;
-use chrono_tz::Tz;
+use jiff::tz::TimeZone;
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::datasources::tmdb::{TmdbEpisode, TmdbMovie, TmdbSeason, TmdbShow};
@@ -11,7 +10,7 @@ use crate::models::show::{
     ShowDetail, ShowRow, UpNextItem, WatchlistItem,
 };
 use crate::models::watch_log::{action_str, NewWatchLogEntry};
-use crate::state::today_in;
+use crate::state::{now_utc_rfc3339, today_in};
 
 /// Server-enforced ceiling on the rows any list query will return.
 ///
@@ -37,7 +36,7 @@ pub async fn insert_show_full(
 ) -> Result<()> {
     let providers_json = serde_json::to_string(&show.us_providers())?;
     let networks_json = serde_json::to_string(&show.network_names())?;
-    let now = Utc::now().to_rfc3339();
+    let now = now_utc_rfc3339();
 
     let mut tx = pool.begin().await?;
 
@@ -138,7 +137,7 @@ pub async fn delete_show(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
 }
 
 // @spec SHOWS-API-008, SHOWS-PROGRESS-002, SHOWS-PROGRESS-003
-pub async fn list_watchlist(pool: &SqlitePool, tz: Tz) -> Result<Vec<WatchlistItem>> {
+pub async fn list_watchlist(pool: &SqlitePool, tz: &TimeZone) -> Result<Vec<WatchlistItem>> {
     let today = today_in(tz);
 
     let shows: Vec<ShowRow> = sqlx::query_as(
@@ -174,7 +173,7 @@ pub async fn list_watchlist(pool: &SqlitePool, tz: Tz) -> Result<Vec<WatchlistIt
 pub async fn get_watchlist_item(
     pool: &SqlitePool,
     tmdb_id: i64,
-    tz: Tz,
+    tz: &TimeZone,
 ) -> Result<Option<WatchlistItem>> {
     let today = today_in(tz);
 
@@ -311,7 +310,7 @@ pub async fn movie_exists(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
 
 // @spec MOVIES-API-001, MOVIES-API-004
 pub async fn insert_movie(pool: &SqlitePool, movie: &TmdbMovie) -> Result<()> {
-    let now = Utc::now().to_rfc3339();
+    let now = now_utc_rfc3339();
     sqlx::query(
         "INSERT INTO movies (
             tmdb_id, name, overview, poster_path, backdrop_path,
@@ -522,7 +521,7 @@ fn empty_to_none(s: Option<&str>) -> Option<&str> {
 pub async fn upsert_show_metadata(pool: &SqlitePool, show: &TmdbShow) -> Result<()> {
     let providers_json = serde_json::to_string(&show.us_providers())?;
     let networks_json = serde_json::to_string(&show.network_names())?;
-    let now = Utc::now().to_rfc3339();
+    let now = now_utc_rfc3339();
 
     sqlx::query(
         "UPDATE shows SET
@@ -648,7 +647,7 @@ pub async fn list_resync_candidates(pool: &SqlitePool) -> Result<Vec<i64>> {
 }
 
 // @spec AIRING-UPNEXT-001, AIRING-UPNEXT-002, AIRING-UPNEXT-003, AIRING-UPNEXT-004, AIRING-UPNEXT-005
-pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> {
+pub async fn list_up_next(pool: &SqlitePool, tz: &TimeZone) -> Result<Vec<UpNextItem>> {
     let today = today_in(tz);
 
     #[derive(sqlx::FromRow)]
@@ -804,7 +803,7 @@ pub async fn set_episode_watched(
     watched: bool,
 ) -> Result<bool> {
     let watched_at = if watched {
-        Some(Utc::now().to_rfc3339())
+        Some(now_utc_rfc3339())
     } else {
         None
     };
@@ -894,11 +893,11 @@ pub async fn bulk_set_watched(
     show_tmdb_id: i64,
     scope: &BulkScope,
     watched: bool,
-    tz: Tz,
+    tz: &TimeZone,
 ) -> Result<u64> {
     let today = today_in(tz);
     let watched_at = if watched {
-        Some(Utc::now().to_rfc3339())
+        Some(now_utc_rfc3339())
     } else {
         None
     };

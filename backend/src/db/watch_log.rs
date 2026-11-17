@@ -2,7 +2,6 @@
 //! so a log row is committed atomically with the state change it describes.
 
 // @spec WATCHLOG-DATA-001, WATCHLOG-DATA-003, WATCHLOG-DATA-004
-use chrono::Utc;
 use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::error::Result;
@@ -18,7 +17,7 @@ pub async fn insert_entry(
     tx: &mut Transaction<'_, Sqlite>,
     entry: &NewWatchLogEntry<'_>,
 ) -> Result<()> {
-    let now = Utc::now().to_rfc3339();
+    let now = crate::state::now_utc_rfc3339();
     sqlx::query(
         "INSERT INTO watch_log (
             occurred_at, media_type, action, scope, tmdb_id, title, poster_path,

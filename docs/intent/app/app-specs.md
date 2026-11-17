@@ -1,6 +1,6 @@
 # App perimeter and shell — EARS specs
 
-Prefix `APP`. Facets: `CONFIG` (startup configuration), `HTTP` (the API perimeter and static delivery), `ERR` (error responses), `HEALTH`, `SPA` (router, navigation, fetch wrapper, document head, the shared stylesheet and its narrow breakpoint). "Narrow" throughout means the viewport is at most 900 CSS px wide, the single breakpoint APP-SPA-007 defines; "wide" means above it.
+Prefix `APP`. Facets: `CONFIG` (startup configuration), `TIME` (how stored timestamps are written), `HTTP` (the API perimeter and static delivery), `ERR` (error responses), `HEALTH`, `SPA` (router, navigation, fetch wrapper, document head, the shared stylesheet and its narrow breakpoint). "Narrow" throughout means the viewport is at most 900 CSS px wide, the single breakpoint APP-SPA-007 defines; "wide" means above it.
 
 ## Config
 
@@ -9,6 +9,11 @@ Prefix `APP`. Facets: `CONFIG` (startup configuration), `HTTP` (the API perimete
 - [x] **APP-CONFIG-003**: On startup the system shall open the SQLite database creating the file if missing, with foreign keys enabled, WAL journaling, `synchronous=NORMAL`, a 30-second busy timeout, and a pool of `DB_MAX_CONNECTIONS` connections (default 5), and shall apply all embedded migrations before serving requests, failing startup if a migration fails.
 - [x] **APP-CONFIG-004**: When the directory named by `STATIC_DIR` (default `./static`) contains an `index.html`, the system shall serve that directory for every non-API path, answering any such path with no matching file with `index.html` and status 200; otherwise it shall log a warning and serve the API only.
 - [x] **APP-CONFIG-005**: The system shall configure log filtering from `RUST_LOG`, defaulting to `info`.
+- [x] **APP-CONFIG-006**: The system shall resolve `TIMEZONE` against the IANA time zone database compiled into the binary, so that the same zone names are valid whether or not the host or runtime image carries zone files.
+
+## Time
+
+- [x] **APP-TIME-001**: Every timestamp the backend stores shall be the current instant in UTC formatted as RFC3339 with nine fractional-second digits and a `+00:00` offset (for example `2026-11-17T11:34:42.267791000+00:00`), never a `Z` suffix.
 
 ## HTTP
 

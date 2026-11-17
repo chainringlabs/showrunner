@@ -1,100 +1,104 @@
-use tokio_cron_scheduler::{Job, JobScheduler};
+use std::future::Future;
+use std::time::Duration;
+
+use croner::parser::{CronParser, Seconds};
+use croner::Cron;
+use jiff::tz::TimeZone;
+use jiff::{Timestamp, Zoned};
+use tokio::task::JoinHandle;
 
 use crate::config::ScheduleConfig;
 use crate::error::{AppError, Result};
 use crate::logic::resync;
 use crate::state::AppState;
 
+/// Longest single sleep before the wall clock is read again, so a host suspend
+/// or a clock step moves a fire by at most this much.
+const MAX_SLEEP: Duration = Duration::from_secs(60);
+
+/// Start the cron-driven TMDB resync. The returned task runs for the life of
+/// the process.
 // @spec RESYNC-TRIGGER-001, RESYNC-TRIGGER-002, APP-CONFIG-002
-pub async fn start(state: AppState, schedule: ScheduleConfig) -> Result<JobScheduler> {
-    let scheduler = JobScheduler::new()
-        .await
-        .map_err(|e| AppError::Config(format!("Failed to initialize scheduler: {}", e)))?;
-
-    // Cron-driven TMDB resync — fires in the configured local timezone.
-    let resync_state = state.clone();
-    let resync_job =
-        Job::new_async_tz(schedule.resync_cron.as_str(), state.tz, move |_uuid, _l| {
-            let state = resync_state.clone();
-            Box::pin(async move {
-                match resync::resync_all(&state.pool, &state.tmdb).await {
-                    Ok(report) => tracing::info!(
-                        synced = report.shows_synced,
-                        failed = report.errors.len(),
-                        "scheduled resync done"
-                    ),
-                    Err(e) => tracing::error!(error = %e, "scheduled resync errored"),
-                }
-            })
-        })
-        .map_err(|e| AppError::Config(format!("Invalid RESYNC_CRON: {}", e)))?;
-
-    scheduler
-        .add(resync_job)
-        .await
-        .map_err(|e| AppError::Config(format!("Failed to add resync job: {}", e)))?;
-
-    scheduler
-        .start()
-        .await
-        .map_err(|e| AppError::Config(format!("Failed to start scheduler: {}", e)))?;
+pub async fn start(state: AppState, schedule: ScheduleConfig) -> Result<JoinHandle<()>> {
+    let cron = parse_cron(&schedule.resync_cron)?;
+    let tz = state.tz.clone();
 
     tracing::info!(
         cron = %schedule.resync_cron,
-        timezone = %state.tz,
+        timezone = tz.iana_name().unwrap_or("unnamed"),
         "scheduler started"
     );
-    Ok(scheduler)
+
+    Ok(tokio::spawn(run_loop(cron, tz, move || {
+        let state = state.clone();
+        async move {
+            match resync::resync_all(&state.pool, &state.tmdb).await {
+                Ok(report) => tracing::info!(
+                    synced = report.shows_synced,
+                    failed = report.errors.len(),
+                    "scheduled resync done"
+                ),
+                Err(e) => tracing::error!(error = %e, "scheduled resync errored"),
+            }
+        }
+    })))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::datasources::tmdb::TmdbClient;
-    use chrono_tz::UTC;
-    use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-    use std::str::FromStr;
+/// Parse `RESYNC_CRON`: seconds are required, and a day-of-month and a
+/// day-of-week given together must both match.
+// @spec RESYNC-TRIGGER-001, RESYNC-TRIGGER-002
+fn parse_cron(expr: &str) -> Result<Cron> {
+    CronParser::builder()
+        .seconds(Seconds::Required)
+        .dom_and_dow(true)
+        .build()
+        .parse(expr)
+        .map_err(|e| AppError::Config(format!("Invalid RESYNC_CRON: {}", e)))
+}
 
-    async fn fresh_state() -> AppState {
-        let opts = SqliteConnectOptions::from_str("sqlite::memory:").unwrap();
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect_with(opts)
-            .await
-            .unwrap();
-        sqlx::migrate!("./src/db/migrations")
-            .run(&pool)
-            .await
-            .unwrap();
-        let tmdb = TmdbClient::new("k".into());
-        AppState::new(pool, tmdb, UTC)
-    }
+/// The first fire time strictly after `after`, in `after`'s time zone. `None`
+/// when the expression has no further occurrence (a year field in the past).
+// @spec RESYNC-TRIGGER-001, RESYNC-TRIGGER-009
+fn next_fire(cron: &Cron, after: &Zoned) -> Option<Zoned> {
+    cron.find_next_occurrence(after, false).ok()
+}
 
-    // @spec RESYNC-TRIGGER-001
-    #[tokio::test]
-    async fn start_succeeds_with_valid_cron_and_returns_scheduler() {
-        let state = fresh_state().await;
-        let schedule = ScheduleConfig {
-            resync_cron: "0 0 12 * * *".into(),
+/// Fire `job` at each cron time in `tz`, one run at a time. The next fire time
+/// is computed after a run ends, so times that pass during a run are skipped.
+/// Each run is its own task, so a panic is logged and the schedule continues.
+// @spec RESYNC-TRIGGER-007, RESYNC-TRIGGER-008
+async fn run_loop<F, Fut>(cron: Cron, tz: TimeZone, job: F)
+where
+    F: Fn() -> Fut + Send + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    loop {
+        let now = Timestamp::now().to_zoned(tz.clone());
+        let Some(next) = next_fire(&cron, &now) else {
+            tracing::warn!("resync schedule has no further fire times; scheduler stopped");
+            return;
         };
-        let mut scheduler = start(state, schedule).await.unwrap();
-        scheduler.shutdown().await.unwrap();
-    }
-
-    // @spec RESYNC-TRIGGER-002, APP-CONFIG-002
-    #[tokio::test]
-    async fn start_returns_config_error_for_invalid_cron() {
-        let state = fresh_state().await;
-        let schedule = ScheduleConfig {
-            resync_cron: "this is not a cron".into(),
-        };
-        let result = start(state, schedule).await;
-        match result {
-            Err(AppError::Config(msg)) => {
-                assert!(msg.contains("RESYNC_CRON"));
-            }
-            Err(other) => panic!("expected Config error, got {:?}", other),
-            Ok(_) => panic!("expected Config error, got Ok"),
+        sleep_until(next.timestamp()).await;
+        if let Err(e) = tokio::spawn(job()).await {
+            tracing::error!(error = %e, "scheduled resync panicked");
         }
     }
 }
+
+/// Sleep until the wall clock reaches `target`, re-reading it at least every
+/// `MAX_SLEEP`.
+async fn sleep_until(target: Timestamp) {
+    loop {
+        let remaining = target.duration_since(Timestamp::now());
+        let Ok(remaining) = Duration::try_from(remaining) else {
+            return; // negative: the target has passed
+        };
+        if remaining.is_zero() {
+            return;
+        }
+        tokio::time::sleep(remaining.min(MAX_SLEEP)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests;

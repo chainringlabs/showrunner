@@ -25,6 +25,12 @@ Showrunner has no authentication by design: anyone who can reach the port can re
 
 Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsable value silently falls back) in backend/src/db/pool.rs (`create_pool`), and `STATIC_DIR` (default `./static`) in lib.rs (`run`). `RUST_LOG` drives the tracing filter with `info` as the default (`log_filter` in lib.rs). Every configuration failure is an `AppError::Config` that aborts startup before the socket is bound.
 
+`TIMEZONE` is resolved against the IANA database compiled into the binary (`jiff`'s bundled database, `TimeZoneDatabase::bundled()` in `Config::from_env`), never the host's zone files. The runtime image is distroless and is not relied on to carry any, and one database everywhere means a zone name accepted in development is accepted in the image. Lookup is case-insensitive. The resolved `jiff::tz::TimeZone` travels as `Config.timezone` and `AppState.tz`.
+
+## Time
+
+Dates and times use `jiff`. "Today" (`today_in`, backend/src/state.rs, owned by `shows`) is the current instant's civil date in `AppState.tz`. Every stored timestamp comes from one function, `now_utc_rfc3339` (state.rs): UTC, nine fractional digits, `+00:00` offset. The offset form is load-bearing: the watchlist and the watch log order these TEXT columns bytewise, and resync's eligibility query passes `last_synced_at` to SQLite's `datetime()`, which reads this form. `+` sorts below every digit, so two values that differ in fractional precision still order correctly; with a `Z` suffix they would not, and rows written with `Z` would not sort with rows already stored. sqlx has no `jiff` integration and needs none: timestamps and dates are bound and read as strings.
+
 `create_pool` (backend/src/db/pool.rs) opens SQLite with create-if-missing, foreign keys on, WAL journal, `synchronous=NORMAL`, a 30 s busy timeout, and the configured pool size, then runs the migrations embedded at build time from `backend/src/db/migrations`; a migration failure is also a startup `Config` error.
 
 ## HTTP perimeter
@@ -105,6 +111,9 @@ Arrangements specific to one page (the Up Next row's action button, the episode 
 | Wildcard CORS | Hand-built, no credentials, explicit methods | tower-http's permissive constructor | The permissive constructor also wildcards methods and exposed headers, a broader grant than the named branch; credentials with `*` are forbidden by the CORS spec (the `Some("*")` branch of `build_cors_layer`). |
 | CSP | Same-origin scripts and connections; images from TMDB's CDN; inline styles allowed | Nonce-based styles; report-only | The SPA loads only its own bundle and TMDB posters (`CONTENT_SECURITY_POLICY`). |
 | Header placement | Security headers wrap the whole app, last | API router only | The static HTML is where CSP and anti-framing matter (`with_security_headers`). |
+| Date and time library | `jiff` | `chrono` with `chrono-tz`; `time` | `chrono` and `chrono-tz` carry RustSec unmaintained advisories that fail the supply-chain scan. `jiff` is maintained, does zone-aware date arithmetic, and ships the tz database as an optional bundle. `time` has no IANA zone support, which "today in `TIMEZONE`" and the resync schedule both need. |
+| Time zone database | Compiled into the binary | The host's `/usr/share/zoneinfo` | The distroless runtime image need not carry zone files, and a single database makes zone validation identical in development, CI, and the image. The cost is that new tz rules arrive with a dependency update rather than an OS update. |
+| Stored timestamp form | RFC3339 UTC with `+00:00` and nine fractional digits | `Z` suffix; SQLite `CURRENT_TIMESTAMP` | Text ordering stays correct across fractional precisions and matches every row already stored; `CURRENT_TIMESTAMP` has second resolution and no offset. |
 | SPA delivery | Backend serves `dist/` with `index.html` fallback | Separate web server | One container, one process (README.md's overview, CLAUDE.md). |
 | Error bodies | `{"error": …}` with generic text for internal variants | Pass-through messages | sqlx and reqwest internals must never reach a client (`AppError::client_message`). |
 | Client error shape | `ApiError` with `status` as a field and the server message as `message` | `Error` with `API <status>: <message>` as the message, stripped per page | The status is data, not part of the sentence; carrying it as a field means every page shows the server's wording without each one parsing a prefix. |

@@ -20,7 +20,7 @@ Prefix `AIRING`. Facets: `UPNEXT` (the `GET /api/v1/up-next` query and the Up Ne
 
 ## Calendar
 
-- [x] **AIRING-CAL-001**: `GET /api/v1/calendar` shall require `start` and `end` query parameters in `YYYY-MM-DD` form, and if either fails to parse it shall respond 400 with `invalid start date: <value>` or `invalid end date: <value>`.
+- [x] **AIRING-CAL-001**: `GET /api/v1/calendar` shall require `start` and `end` query parameters in `YYYY-MM-DD` form with an unsigned four-digit year, and if either fails to parse it shall respond 400 with `invalid start date: <value>` or `invalid end date: <value>`.
 - [x] **AIRING-CAL-002**: If `end` is earlier than `start`, then `GET /api/v1/calendar` shall respond 400 with the error `end must be >= start`.
 - [x] **AIRING-CAL-003**: If the span from `start` to `end` exceeds 92 days, then `GET /api/v1/calendar` shall respond 400 with the error `range <n> days exceeds max of 92`.
 - [x] **AIRING-CAL-004**: `GET /api/v1/calendar` shall bind the parsed dates re-formatted as zero-padded `YYYY-MM-DD`, never the raw query strings, so that the SQL comparison against stored dates is bytewise-correct.
