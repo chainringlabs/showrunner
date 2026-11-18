@@ -40,7 +40,7 @@ serde_json = "1.0"
 # binary; config.rs resolves TIMEZONE against that copy only, so the
 # distroless runtime image needs no zone files. Held at 0.2 because croner 4
 # is built against jiff ^0.2; raise both together.
-jiff = { version = "0.2", features = ["tzdb-bundle-always"] }
+jiff = { version = "1.0", features = ["tzdb-bundle-always"] }
 
 # Error handling
 anyhow = "1.0"
