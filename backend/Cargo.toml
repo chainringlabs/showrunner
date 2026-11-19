@@ -35,11 +35,12 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "que
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
-# @spec APP-CONFIG-006
+# @spec APP-CONFIG-006, SHIP-SUPPLY-006
 # Date/Time. `tzdb-bundle-always` compiles the IANA tz database into the
 # binary; config.rs resolves TIMEZONE against that copy only, so the
 # distroless runtime image needs no zone files. Held at 0.2 because croner 4
-# is built against jiff ^0.2; raise both together.
+# is built against jiff ^0.2; raise both together. renovate.json carries the
+# matching `allowedVersions` hold.
 jiff = { version = "0.2", features = ["tzdb-bundle-always"] }
 
 # Error handling

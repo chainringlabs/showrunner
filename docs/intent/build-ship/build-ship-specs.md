@@ -26,6 +26,7 @@ Prefix `SHIP`. Facets: `IMAGE` (Dockerfile and compose), `CI` (merge gates), `SU
 - [x] **SHIP-SUPPLY-003**: When the supply-chain scan runs for a push to `main` or on a schedule, it shall scan the repository's lockfiles with OSV in absolute mode and run `cargo audit` on the backend, and shall fail on any known vulnerability either reports unless the advisory is listed in that lockfile's ignore list (`osv-scanner.toml` beside the lockfile for OSV, `backend/.cargo/audit.toml` for `cargo audit`).
 - [x] **SHIP-SUPPLY-004**: Renovate shall pin Docker images and GitHub Actions by digest, group all Docker base images into a single pull request, group minor and patch updates into a single pull request auto-merged after a 3-day release age, auto-merge digest updates after a 1-day release age, never auto-merge major updates, and run lockfile maintenance weekly.
 - [x] **SHIP-SUPPLY-005**: Every entry in `backend/osv-scanner.toml` shall carry a non-empty `reason` and an `effectiveUntil` date, and every advisory ignored in `backend/.cargo/audit.toml` shall also be an entry in `backend/osv-scanner.toml`, so that no backend advisory is ignored without a stated reason and an expiry after which the absolute scan fails again.
+- [x] **SHIP-SUPPLY-006**: Every `renovate.json` package rule that sets `allowedVersions` shall name the packages it holds in `matchPackageNames` and carry a `description` that states what holds them back and links to where the condition for lifting the hold is tracked.
 
 ## Release
 

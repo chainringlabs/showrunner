@@ -23,7 +23,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 - .github/workflows/supply-chain.yml — job `scan`: steps `Install frontend deps (no scripts)`, `Verify npm package signatures`, `Socket Security scan (frontend)`, `Fetch base-branch lockfiles (PR diff mode)`, `OSV scan base lockfiles (PR diff mode)`, `OSV scan PR lockfiles (PR diff mode)`, `Check that both scans completed (PR diff mode)`, `Report vulnerabilities introduced by this PR`, `OSV scan (absolute, main / scheduled)`, `cargo audit (backend)` (absolute runs only).
 - .github/workflows/docker-publish.yml — job `supply-chain` (call of supply-chain.yml); job `build-and-push`: steps `Extract metadata (tags, labels)`, `Build and push Docker image` (the only check that exercises `SHIP-IMAGE-001`; builds without pushing on pull requests), `Install cosign`, `Sign image with cosign (keyless)`, `Generate SBOM (SPDX)`, `Attest SBOM`, `Attest build provenance`.
 - .github/workflows/ghcr-retention.yml — job `prune`: step `Prune GHCR (keep latest + 5 most recent tagged)`.
-- backend/tests/supply_chain.rs — `every_osv_ignore_has_a_reason_and_an_expiry`, `every_cargo_audit_ignore_is_also_an_osv_entry`, `the_parsers_see_entries_and_reject_a_missing_expiry` (`SHIP-SUPPLY-005`).
+- backend/tests/supply_chain.rs — `every_osv_ignore_has_a_reason_and_an_expiry`, `every_cargo_audit_ignore_is_also_an_osv_entry`, `the_parsers_see_entries_and_reject_a_missing_expiry` (`SHIP-SUPPLY-005`); `every_renovate_version_hold_is_named_and_explained`, `a_version_hold_without_packages_or_a_tracking_link_is_reported` (`SHIP-SUPPLY-006`).
 - Image verification by an operator is documented in README.md → Verifying the image (`cosign verify`, `gh attestation verify`).
 
 ### Code
@@ -37,7 +37,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 - .github/workflows/docker-publish.yml — workflow and job `permissions` (`SHIP-CI-003`), job `ci` (`SHIP-CI-001`, `SHIP-RELEASE-001`), job `supply-chain` (`SHIP-SUPPLY-003`), job `build-and-push` and its metadata step (`SHIP-RELEASE-001`), the build step (`SHIP-IMAGE-001`), the cosign / SBOM / attestation steps (`SHIP-RELEASE-002`).
 - .github/workflows/ghcr-retention.yml — `permissions` (`SHIP-CI-003`), job `prune` (`SHIP-RELEASE-003`).
 - backend/osv-scanner.toml, backend/.cargo/audit.toml — the backend advisory ignore lists (`SHIP-SUPPLY-003`, `SHIP-SUPPLY-005`).
-- renovate.json — `SHIP-SUPPLY-004` (JSON cannot carry a `@spec` comment; the LLD's Retention and dependency updates section is its only anchor).
+- renovate.json — `SHIP-SUPPLY-004`, `SHIP-SUPPLY-006` (JSON cannot carry a `@spec` comment; `SHIP-SUPPLY-006` is cited beside the held dependency in backend/Cargo.toml).
 - Related, unannotated: .gitignore; env.example; frontend/osv-scanner.toml (per-lockfile OSV ignore list read by the scan); README.md (Quick start, Verifying the image, Updating, Backup & restore); SECURITY.md (Supply chain); CONTRIBUTING.md (Before you push); .github/pull_request_template.md.
 - Consumed from other segments: `app` — the binary's `--healthcheck` mode (`main`, `api::health::probe_from_env`) that the image's `HEALTHCHECK` runs, and the `STATIC_DIR` setting the runtime stage and compose file supply.
 - Consumers: `app` (`STATIC_DIR`, environment passthrough, health endpoint).

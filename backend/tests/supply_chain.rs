@@ -1,5 +1,6 @@
-//! Checks on the backend's advisory ignore lists. They are read as text, so
-//! the rules hold for whatever entries the files carry.
+//! Checks on the backend's advisory ignore lists and on Renovate's version
+//! holds. The files are read as they are, so the rules hold for whatever
+//! entries they carry.
 
 use std::path::Path;
 
@@ -100,4 +101,45 @@ fn the_parsers_see_entries_and_reject_a_missing_expiry() {
         ["A-1", "B-2"]
     );
     assert!(audit_ignored("[advisories]\n").is_empty());
+}
+
+/// What is wrong with each `allowedVersions` rule in a Renovate config: one
+/// line per rule that names no packages, or whose description has no link.
+fn version_hold_problems(renovate_json: &str) -> Vec<String> {
+    let config: serde_json::Value = serde_json::from_str(renovate_json).expect("renovate.json");
+    let rules = config["packageRules"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let mut problems = Vec::new();
+    for rule in rules.iter().filter(|r| r.get("allowedVersions").is_some()) {
+        if rule["matchPackageNames"]
+            .as_array()
+            .is_none_or(|names| names.is_empty())
+        {
+            problems.push(format!("{rule}: no matchPackageNames"));
+        }
+        let description = rule["description"].as_str().unwrap_or_default();
+        if !description.contains("https://") {
+            problems.push(format!("{rule}: description has no tracking link"));
+        }
+    }
+    problems
+}
+
+// @spec SHIP-SUPPLY-006
+#[test]
+fn every_renovate_version_hold_is_named_and_explained() {
+    let problems = version_hold_problems(&read("../renovate.json"));
+    assert!(problems.is_empty(), "{problems:#?}");
+}
+
+// @spec SHIP-SUPPLY-006
+#[test]
+fn a_version_hold_without_packages_or_a_tracking_link_is_reported() {
+    let bare = r#"{"packageRules": [{"allowedVersions": "<2"}, {"automerge": true}]}"#;
+    assert_eq!(version_hold_problems(bare).len(), 2);
+    let explained = r#"{"packageRules": [{"matchPackageNames": ["a"],
+        "allowedVersions": "<2", "description": "b needs a 1.x: https://example.com/1"}]}"#;
+    assert!(version_hold_problems(explained).is_empty());
 }
