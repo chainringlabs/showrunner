@@ -67,6 +67,12 @@
       "matchDatasources": ["docker"],
       "groupName": "docker base images",
       "groupSlug": "docker-base-images"
+    },
+    {
+      "description": "Hold jiff below 1.0: croner 4 is built against jiff 0.2 and exchanges jiff zoned datetimes with the scheduler, so both must move in one change. Delete this rule when croner supports jiff 1.0: https://github.com/Hexagon/croner-rust/issues/76",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["jiff"],
+      "allowedVersions": "<1.0.0"
     }
   ],
   "vulnerabilityAlerts": {
