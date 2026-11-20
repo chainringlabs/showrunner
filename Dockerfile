@@ -2,7 +2,7 @@
 # Stage 1: Build frontend
 # glibc (Debian slim), not alpine/musl: matches the CI environment the committed
 # lockfile is resolved against, so `npm ci` installs exactly the audited tree.
-FROM node:26-trixie-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS frontend-build
+FROM node:26-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 # `npm ci` installs strictly from the committed lockfile (the set CI audits),
@@ -43,7 +43,7 @@ RUN mkdir -p /rootfs/data && chown -R 65532:65532 /rootfs
 # no libssl (rustls handles TLS). The image's default user is uid 65532
 # (nonroot) and it ships a CA bundle at /etc/ssl/certs/ca-certificates.crt
 # which reqwest's rustls-platform-verifier picks up automatically.
-FROM cgr.dev/chainguard/glibc-dynamic:latest@sha256:eaec65b25f35619be16f4992e7bae1128eafcf63c114f2859b800a7020c1ef70
+FROM cgr.dev/chainguard/glibc-dynamic:latest@sha256:3359c6ba6b3bcf3b1d2179849f782365564cb262789e732e2833b25b9a8c00f1
 
 WORKDIR /app
 
