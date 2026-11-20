@@ -4,7 +4,7 @@
 # lockfile is resolved against, so `npm ci` installs exactly the audited tree.
 FROM node:26-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS frontend-build
 WORKDIR /app/frontend
-COPY frontend/package.json frontend/package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
 # `npm ci` installs strictly from the committed lockfile (the set CI audits),
 # unlike `npm install` which re-resolves against the live registry at build
 # time. `--ignore-scripts` blocks arbitrary lifecycle-script execution; the
