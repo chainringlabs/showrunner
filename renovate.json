@@ -1,86 +1,26 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    ":disableRateLimiting",
-    ":dependencyDashboard",
-    ":semanticCommits",
-    ":enablePreCommit",
-    "docker:enableMajor",
-    "helpers:pinGitHubActionDigests",
-    ":timezone(America/New_York)"
+    "github>tgrecojr/renovate-config"
   ],
-  "schedule": [
-    "after 10pm every weekday",
-    "before 5am every weekday",
-    "every weekend"
-  ],
-  "prConcurrentLimit": 3,
-  "prCreation": "immediate",
-  "rebaseWhen": "behind-base-branch",
-  "automerge": true,
-  "platformAutomerge": true,
   "packageRules": [
     {
-      "matchCategories": ["docker"],
-      "pinDigests": true
-    },
-    {
-      "description": "Auto-merge non-major updates for stable images",
-      "matchDatasources": ["docker"],
-      "matchUpdateTypes": ["minor", "patch", "digest"],
-      "automerge": true,
-      "automergeType": "branch"
-    },
-    {
-      "description": "Group all minor and patch updates together",
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "all non-major dependencies",
-      "groupSlug": "all-minor-patch",
-      "automerge": true
-    },
-    {
-      "description": "Disable auto-merge for major updates - need review",
-      "matchUpdateTypes": ["major"],
-      "automerge": false,
-      "labels": ["major-update"]
-    },
-    {
-      "description": "Auto-merge digest updates after a short soak",
-      "matchUpdateTypes": ["digest"],
-      "automerge": true,
-      "minimumReleaseAge": "1 day"
-    },
-    {
-      "description": "Stability period for minor/patch before auto-merge",
-      "matchUpdateTypes": ["minor", "patch"],
-      "minimumReleaseAge": "3 days"
-    },
-    {
-      "description": "Common stable images - faster auto-merge",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["postgres", "mariadb", "nginx", "redis", "traefik"],
-      "minimumReleaseAge": "1 day"
-    },
-    {
       "description": "Keep all Docker base images (node/rust builders + chainguard glibc-dynamic runtime) in one PR so builder and runtime never desync — the rust builder's glibc must not get ahead of the runtime's.",
-      "matchDatasources": ["docker"],
+      "matchDatasources": [
+        "docker"
+      ],
       "groupName": "docker base images",
       "groupSlug": "docker-base-images"
     },
     {
       "description": "Hold jiff below 1.0: croner 4 is built against jiff 0.2 and exchanges jiff zoned datetimes with the scheduler, so both must move in one change. Delete this rule when croner supports jiff 1.0: https://github.com/Hexagon/croner-rust/issues/76",
-      "matchManagers": ["cargo"],
-      "matchPackageNames": ["jiff"],
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchPackageNames": [
+        "jiff"
+      ],
       "allowedVersions": "<1.0.0"
     }
-  ],
-  "vulnerabilityAlerts": {
-    "enabled": true,
-    "labels": ["security"]
-  },
-  "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["before 4am on monday"]
-  }
+  ]
 }
