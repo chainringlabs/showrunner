@@ -56,7 +56,7 @@ body:
     attributes:
       label: Version / image tag
       description: The image tag you're on, or the commit SHA if you built from source.
-      placeholder: "ghcr.io/tgrecojr/showrunner:latest, pulled 2026-07-01"
+      placeholder: "ghcr.io/chainringlabs/showrunner:latest, pulled 2026-07-01"
 
   - type: textarea
     id: logs
