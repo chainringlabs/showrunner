@@ -106,18 +106,21 @@ The SQLite database lives in the `showrunner_data` volume — it survives `docke
 
 Every published image is signed with [cosign](https://docs.sigstore.dev/) (keyless) and ships with an SPDX **SBOM** and a **SLSA build-provenance** attestation. You can verify all of it before running anything.
 
-**Signature** (identity is the GitHub Actions workflow that built it):
+**Signature** (signed by the chainringlabs shared publish workflow; the second flag ties it to this repository):
 
 ```bash
 cosign verify ghcr.io/chainringlabs/showrunner:latest \
-  --certificate-identity-regexp 'https://github.com/chainringlabs/showrunner/.*' \
+  --certificate-identity-regexp '^https://github\.com/chainringlabs/ci/\.github/workflows/docker-publish\.yml@' \
+  --certificate-github-workflow-repository chainringlabs/showrunner \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
 **Build provenance and SBOM** (with the GitHub CLI):
 
 ```bash
-gh attestation verify oci://ghcr.io/chainringlabs/showrunner:latest --owner chainringlabs
+gh attestation verify oci://ghcr.io/chainringlabs/showrunner:latest \
+  --repo chainringlabs/showrunner \
+  --signer-workflow chainringlabs/ci/.github/workflows/docker-publish.yml
 ```
 
 ---
