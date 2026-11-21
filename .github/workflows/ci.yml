@@ -108,6 +108,13 @@ jobs:
   supply-chain:
     name: Supply chain
     if: ${{ github.event_name == 'schedule' }}
-    uses: ./.github/workflows/supply-chain.yml
+    permissions:
+      contents: read
+    uses: chainringlabs/ci/.github/workflows/supply-chain.yml@f8888baa2af7a041fe6a5a11f8fe0be182357cc3 # v1.2.1
+    with:
+      npm-dir: frontend
+      cargo-dir: backend
+      socket-dir: frontend
+      node-version: "26"
     secrets:
       SOCKET_SECURITY_API_KEY: ${{ secrets.SOCKET_SECURITY_API_KEY }}

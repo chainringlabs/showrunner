@@ -20,8 +20,8 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 ### Tests
 - The gate steps are their own checks (HLD → Annotation Conventions). `SHIP-IMAGE-002` to `006` describe the built image and have no check; `SHIP-SUPPLY-004` lives in JSON and cannot be cited.
 - .github/workflows/ci.yml — job `backend`: steps `Check formatting`, `Lint with Clippy`, `Run tests with coverage`, `Upload backend coverage report`; job `frontend`: steps `Install dependencies`, `Type check`, `Lint and check formatting`, `Run tests with coverage`, `Upload frontend coverage report`; job `supply-chain` (schedule-only call of supply-chain.yml, absolute mode).
-- .github/workflows/supply-chain.yml — job `scan`: steps `Install frontend deps (no scripts)`, `Verify npm package signatures`, `Socket Security scan (frontend)`, `Fetch base-branch lockfiles (PR diff mode)`, `OSV scan base lockfiles (PR diff mode)`, `OSV scan PR lockfiles (PR diff mode)`, `Check that both scans completed (PR diff mode)`, `Report vulnerabilities introduced by this PR`, `OSV scan (absolute, main / scheduled)`, `cargo audit (backend)` (absolute runs only).
-- .github/workflows/docker-publish.yml — job `supply-chain` (call of supply-chain.yml); job `image` (call of `chainringlabs/ci` → docker-publish.yml, job `Build`; check `image / Build`): steps `Extract metadata (tags, labels)`, `Build and push Docker image` (the only check that exercises `SHIP-IMAGE-001`; builds without pushing on pull requests), `Install cosign`, `Sign image with cosign (keyless)`, `Generate SBOM (SPDX)`, `Attest SBOM`, `Attest build provenance`.
+- The shared scan (`chainringlabs/ci` → supply-chain.yml, job `Scan`; check `Supply chain / Scan`), called from docker-publish.yml and ci.yml: steps `Install npm deps (no scripts)`, `Verify npm package signatures`, `Socket Security scan`, `Fetch base-branch lockfiles (PR diff mode)`, `OSV scan base lockfiles (PR diff mode)`, `OSV scan PR lockfiles (PR diff mode)`, `Check that both scans completed (PR diff mode)`, `Report vulnerabilities introduced by this PR`, `OSV scan (absolute)`, `cargo audit` (absolute runs only).
+- .github/workflows/docker-publish.yml — job `supply-chain` (call of the shared scan); job `image` (call of `chainringlabs/ci` → docker-publish.yml, job `Build`; check `image / Build`): steps `Extract metadata (tags, labels)`, `Build and push Docker image` (the only check that exercises `SHIP-IMAGE-001`; builds without pushing on pull requests), `Install cosign`, `Sign image with cosign (keyless)`, `Generate SBOM (SPDX)`, `Attest SBOM`, `Attest build provenance`.
 - .github/workflows/ghcr-retention.yml — job `prune` (call of `chainringlabs/ci` → ghcr-retention.yml, job `Prune old GHCR versions`).
 - backend/tests/supply_chain.rs — `every_osv_ignore_has_a_reason_and_an_expiry`, `every_cargo_audit_ignore_is_also_an_osv_entry`, `the_parsers_see_entries_and_reject_a_missing_expiry` (`SHIP-SUPPLY-005`); `every_renovate_version_hold_is_named_and_explained`, `a_version_hold_without_packages_or_a_tracking_link_is_reported` (`SHIP-SUPPLY-006`).
 - Image verification by an operator is documented in README.md → Verifying the image (`cosign verify`, `gh attestation verify`).
@@ -33,7 +33,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 - backend/Cargo.toml — the `reqwest` dependency with `rustls` in place of native-tls (`SHIP-IMAGE-002`).
 - frontend/vitest.config.ts — `coverage.thresholds` (`SHIP-CI-001`).
 - .github/workflows/ci.yml — `on` triggers (`SHIP-CI-001`, `SHIP-CI-004`), `permissions` (`SHIP-CI-003`), jobs `backend` and `frontend` (`SHIP-CI-001`), their upload steps (`SHIP-CI-002`), job `supply-chain` (`SHIP-CI-004`, `SHIP-SUPPLY-003`).
-- .github/workflows/supply-chain.yml — job `scan` (`SHIP-SUPPLY-001`), its `permissions` (`SHIP-CI-003`), the PR diff-mode OSV steps (`SHIP-SUPPLY-002`), the absolute OSV step (`SHIP-SUPPLY-003`).
+- .github/workflows/docker-publish.yml and ci.yml — job `supply-chain`, the call of the shared scan (`SHIP-SUPPLY-001`, `SHIP-SUPPLY-002`, `SHIP-SUPPLY-003`), and its `permissions` (`SHIP-CI-003`).
 - .github/workflows/docker-publish.yml — workflow and job `permissions` (`SHIP-CI-003`), job `ci` (`SHIP-CI-001`, `SHIP-RELEASE-001`), job `supply-chain` (`SHIP-SUPPLY-003`), job `image` (`SHIP-RELEASE-001`), whose metadata step (`SHIP-RELEASE-001`), build step (`SHIP-IMAGE-001`) and cosign / SBOM / attestation steps (`SHIP-RELEASE-002`) live in the shared workflow in `chainringlabs/ci` that it calls.
 - .github/workflows/ghcr-retention.yml — `permissions` (`SHIP-CI-003`), job `prune` (`SHIP-RELEASE-003`).
 - backend/osv-scanner.toml, backend/.cargo/audit.toml — the backend advisory ignore lists (`SHIP-SUPPLY-003`, `SHIP-SUPPLY-005`).
@@ -49,7 +49,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 **Key Components:**
 1. Three-stage Dockerfile — lockfile-exact builds on glibc, distroless non-root runtime with a self-probing `HEALTHCHECK`.
 2. `ci.yml` — formatting, lint, typecheck, tests with coverage floors; weekly absolute supply-chain scan of `main`.
-3. `supply-chain.yml` — signatures, Socket, OSV diff on PRs; OSV absolute plus cargo audit on `main` and the weekly schedule, each honouring a dated per-lockfile ignore list.
+3. The shared scan from `chainringlabs/ci` — signatures, Socket, OSV diff on PRs; OSV absolute plus cargo audit on `main` and the weekly schedule, each honouring a dated per-lockfile ignore list.
 4. `docker-publish.yml` and `ghcr-retention.yml` — scan-gated push, keyless signing, SBOM and provenance, weekly prune.
 5. `renovate.json` — digest pinning and grouped, soaked auto-merges.
 
@@ -68,12 +68,12 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 
 All nine are recorded as Deferred items in the LLD (Open Questions & Future Decisions → Deferred) and are still true at `4da220e`:
 
-1. **`npm ci` hardening is inconsistent** — ci.yml:`frontend` step `Install dependencies` runs lifecycle scripts; Dockerfile:`frontend-build` and supply-chain.yml:`Install frontend deps (no scripts)` do not (LLD Deferred 3).
+1. **`npm ci` hardening is inconsistent** — ci.yml:`frontend` step `Install dependencies` runs lifecycle scripts; Dockerfile:`frontend-build` and the shared scan's `Install npm deps (no scripts)` do not (LLD Deferred 3).
 2. **No `concurrency:` groups** on ci.yml or docker-publish.yml; only the shared retention workflow that ghcr-retention.yml:`prune` calls declares one (LLD Deferred 4).
 3. **Semver tags will be pruned** — the shared publish workflow's `Extract metadata` step adds a `sha-*` tag on every `main` push and ghcr-retention.yml:`prune` keeps five, while README.md → Updating suggests pinning `showrunner:0.1` (LLD Deferred 5).
 4. **README backup instructions cannot work** — README.md → Backup & restore runs `docker compose exec app sqlite3 …` against the shell-less Dockerfile runtime stage (LLD Deferred 6).
 5. **Variable passthrough disagrees with docs** — README.md → Configuration lists `DB_MAX_CONNECTIONS`, which docker-compose.yml:`app` does not pass; compose hard-codes `STATIC_DIR`, which the README does not document; `SERVER_PORT` is tunable but the `3001:3001` mapping is fixed (LLD Deferred 7).
-6. **Floating `stable` Rust in CI vs pinned 1.98 in the image** — ci.yml:`backend` and supply-chain.yml:`scan` use `dtolnay/rust-toolchain@…# stable`; Dockerfile:`backend-build` pins `rust:1.98-slim-trixie` (LLD Deferred 8).
+6. **Floating `stable` Rust in CI vs pinned 1.98 in the image** — ci.yml:`backend` uses `dtolnay/rust-toolchain@…# stable`; Dockerfile:`backend-build` pins `rust:1.98-slim-trixie` (LLD Deferred 8).
 7. **Renovate residue** — renovate.json: overlapping Docker automerge rules (`automergeType: branch` vs the grouped PR), a stable-image list naming postgres/mariadb/nginx/redis/traefik, and `:enablePreCommit` without a pre-commit config (LLD Deferred 9).
 8. **Ignore files negate a dot-prefixed example file** — .gitignore and .dockerignore both carry `!.env.example` while the committed template is `env.example` (LLD Deferred 10).
 
