@@ -22,7 +22,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 - .github/workflows/ci.yml — job `backend`: steps `Check formatting`, `Lint with Clippy`, `Run tests with coverage`, `Upload backend coverage report`; job `frontend`: steps `Install dependencies`, `Type check`, `Lint and check formatting`, `Run tests with coverage`, `Upload frontend coverage report`; job `supply-chain` (schedule-only call of supply-chain.yml, absolute mode).
 - .github/workflows/supply-chain.yml — job `scan`: steps `Install frontend deps (no scripts)`, `Verify npm package signatures`, `Socket Security scan (frontend)`, `Fetch base-branch lockfiles (PR diff mode)`, `OSV scan base lockfiles (PR diff mode)`, `OSV scan PR lockfiles (PR diff mode)`, `Check that both scans completed (PR diff mode)`, `Report vulnerabilities introduced by this PR`, `OSV scan (absolute, main / scheduled)`, `cargo audit (backend)` (absolute runs only).
 - .github/workflows/docker-publish.yml — job `supply-chain` (call of supply-chain.yml); job `build-and-push`: steps `Extract metadata (tags, labels)`, `Build and push Docker image` (the only check that exercises `SHIP-IMAGE-001`; builds without pushing on pull requests), `Install cosign`, `Sign image with cosign (keyless)`, `Generate SBOM (SPDX)`, `Attest SBOM`, `Attest build provenance`.
-- .github/workflows/ghcr-retention.yml — job `prune`: step `Prune GHCR (keep latest + 5 most recent tagged)`.
+- .github/workflows/ghcr-retention.yml — job `prune` (call of `chainringlabs/ci` → ghcr-retention.yml, job `Prune old GHCR versions`).
 - backend/tests/supply_chain.rs — `every_osv_ignore_has_a_reason_and_an_expiry`, `every_cargo_audit_ignore_is_also_an_osv_entry`, `the_parsers_see_entries_and_reject_a_missing_expiry` (`SHIP-SUPPLY-005`); `every_renovate_version_hold_is_named_and_explained`, `a_version_hold_without_packages_or_a_tracking_link_is_reported` (`SHIP-SUPPLY-006`).
 - Image verification by an operator is documented in README.md → Verifying the image (`cosign verify`, `gh attestation verify`).
 
@@ -69,7 +69,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 All nine are recorded as Deferred items in the LLD (Open Questions & Future Decisions → Deferred) and are still true at `4da220e`:
 
 1. **`npm ci` hardening is inconsistent** — ci.yml:`frontend` step `Install dependencies` runs lifecycle scripts; Dockerfile:`frontend-build` and supply-chain.yml:`Install frontend deps (no scripts)` do not (LLD Deferred 3).
-2. **No `concurrency:` groups** on ci.yml or docker-publish.yml; only ghcr-retention.yml:`prune` declares one (LLD Deferred 4).
+2. **No `concurrency:` groups** on ci.yml or docker-publish.yml; only the shared retention workflow that ghcr-retention.yml:`prune` calls declares one (LLD Deferred 4).
 3. **Semver tags will be pruned** — docker-publish.yml:`Extract metadata` adds a `sha-*` tag on every `main` push and ghcr-retention.yml:`prune` keeps five, while README.md → Updating suggests pinning `showrunner:0.1` (LLD Deferred 5).
 4. **README backup instructions cannot work** — README.md → Backup & restore runs `docker compose exec app sqlite3 …` against the shell-less Dockerfile runtime stage (LLD Deferred 6).
 5. **Variable passthrough disagrees with docs** — README.md → Configuration lists `DB_MAX_CONNECTIONS`, which docker-compose.yml:`app` does not pass; compose hard-codes `STATIC_DIR`, which the README does not document; `SERVER_PORT` is tunable but the `3001:3001` mapping is fixed (LLD Deferred 7).
