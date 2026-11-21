@@ -4,7 +4,7 @@
 
 **Please do not open a public issue for a security vulnerability.**
 
-Report it privately via [GitHub's private vulnerability reporting](https://github.com/tgrecojr/showrunner/security/advisories/new). That opens a draft advisory only you and the maintainer can see.
+Report it privately via [GitHub's private vulnerability reporting](https://github.com/chainringlabs/showrunner/security/advisories/new). That opens a draft advisory only you and the maintainer can see.
 
 Please include what the issue is, how to reproduce it, and what an attacker could achieve. I'll acknowledge within a few days. This is a personal project maintained in spare time, so please be patient — but a real vulnerability will get attention.
 

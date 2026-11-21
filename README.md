@@ -65,7 +65,7 @@ A prebuilt, signed image is published to the GitHub Container Registry, so you d
 ```yaml
 services:
   app:
-    image: ghcr.io/tgrecojr/showrunner:latest
+    image: ghcr.io/chainringlabs/showrunner:latest
     restart: unless-stopped
     ports:
       - "3001:3001"
@@ -109,15 +109,15 @@ Every published image is signed with [cosign](https://docs.sigstore.dev/) (keyle
 **Signature** (identity is the GitHub Actions workflow that built it):
 
 ```bash
-cosign verify ghcr.io/tgrecojr/showrunner:latest \
-  --certificate-identity-regexp 'https://github.com/tgrecojr/showrunner/.*' \
+cosign verify ghcr.io/chainringlabs/showrunner:latest \
+  --certificate-identity-regexp 'https://github.com/chainringlabs/showrunner/.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
 **Build provenance and SBOM** (with the GitHub CLI):
 
 ```bash
-gh attestation verify oci://ghcr.io/tgrecojr/showrunner:latest --owner tgrecojr
+gh attestation verify oci://ghcr.io/chainringlabs/showrunner:latest --owner chainringlabs
 ```
 
 ---
@@ -131,7 +131,7 @@ docker compose up -d     # recreate the container
 
 Your data is untouched — it lives in the `showrunner_data` volume, not in the image. Database schema migrations run automatically on startup.
 
-To pin a specific version instead of tracking `latest`, set the tag in `docker-compose.yml` (e.g. `ghcr.io/tgrecojr/showrunner:0.1`). Available tags are on the [package page](https://github.com/tgrecojr/showrunner/pkgs/container/showrunner).
+To pin a specific version instead of tracking `latest`, set the tag in `docker-compose.yml` (e.g. `ghcr.io/chainringlabs/showrunner:0.1`). Available tags are on the [package page](https://github.com/chainringlabs/showrunner/pkgs/container/showrunner).
 
 ---
 
