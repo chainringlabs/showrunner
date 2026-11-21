@@ -11,12 +11,18 @@ on:
 permissions: {}
 
 jobs:
-  # @spec SHIP-SUPPLY-003
+  # The organization's shared scan, pointed at this repository's two lockfiles.
+  # @spec SHIP-SUPPLY-001, SHIP-SUPPLY-002, SHIP-SUPPLY-003
   supply-chain:
     name: Supply chain
     permissions:
       contents: read
-    uses: ./.github/workflows/supply-chain.yml
+    uses: chainringlabs/ci/.github/workflows/supply-chain.yml@f8888baa2af7a041fe6a5a11f8fe0be182357cc3 # v1.2.1
+    with:
+      npm-dir: frontend
+      cargo-dir: backend
+      socket-dir: frontend
+      node-version: "26"
     # Pass only the secret the reusable workflow declares, not the whole store.
     secrets:
       SOCKET_SECURITY_API_KEY: ${{ secrets.SOCKET_SECURITY_API_KEY }}
