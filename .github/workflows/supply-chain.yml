@@ -166,7 +166,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         if: ${{ github.event_name != 'pull_request' }}
 
-      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2
+      - uses: taiki-e/install-action@25f51f6b1bf4e18876107cece836f4f77ac17c8c # v2
         if: ${{ github.event_name != 'pull_request' }}
         with:
           tool: cargo-audit
