@@ -31,8 +31,8 @@ fn osv_entries(toml: &str) -> Vec<String> {
         .collect()
 }
 
-/// The advisory ids in audit.toml's `ignore = [...]` array.
-fn audit_ignored(toml: &str) -> Vec<String> {
+/// The advisory ids in deny.toml's `[advisories]` `ignore = [...]` array.
+fn deny_ignored(toml: &str) -> Vec<String> {
     let uncommented: String = toml
         .lines()
         .filter(|l| !l.trim_start().starts_with('#'))
@@ -75,15 +75,15 @@ fn every_osv_ignore_has_a_reason_and_an_expiry() {
 
 // @spec SHIP-SUPPLY-005
 #[test]
-fn every_cargo_audit_ignore_is_also_an_osv_entry() {
+fn every_cargo_deny_ignore_is_also_an_osv_entry() {
     let osv_ids: Vec<String> = osv_entries(&read("osv-scanner.toml"))
         .iter()
         .filter_map(|e| value_of(e, "id").map(str::to_owned))
         .collect();
-    for id in audit_ignored(&read(".cargo/audit.toml")) {
+    for id in deny_ignored(&read("deny.toml")) {
         assert!(
             osv_ids.contains(&id),
-            "{id} is ignored for cargo audit but has no dated entry in osv-scanner.toml"
+            "{id} is ignored for cargo-deny but has no dated entry in osv-scanner.toml"
         );
     }
 }
@@ -97,10 +97,10 @@ fn the_parsers_see_entries_and_reject_a_missing_expiry() {
     assert_eq!(value_of(&entries[0], "id"), Some("X-1"));
     assert_eq!(value_of(&entries[0], "effectiveUntil"), None);
     assert_eq!(
-        audit_ignored("[advisories]\nignore = [\"A-1\", \"B-2\"]\n"),
+        deny_ignored("[advisories]\nignore = [\"A-1\", \"B-2\"]\n"),
         ["A-1", "B-2"]
     );
-    assert!(audit_ignored("[advisories]\n").is_empty());
+    assert!(deny_ignored("[advisories]\n").is_empty());
 }
 
 /// What is wrong with each `allowedVersions` rule in a Renovate config: one

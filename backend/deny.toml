@@ -1,0 +1,48 @@
+# cargo-deny policy, read by the organization's shared supply-chain scan
+# (chainringlabs/ci). Run locally with `cargo deny check`.
+#
+# Licences, bans and sources are checked on every pull request. Advisories are
+# checked on pushes to main and weekly; on pull requests the OSV comparison
+# judges only what the pull request introduces.
+
+[advisories]
+# Vulnerable and unsound crates are always denied. Unmaintained crates anywhere
+# in the graph and yanked releases are denied too.
+unmaintained = "all"
+yanked = "deny"
+# Every id here must also be an entry in osv-scanner.toml, which carries the
+# reason and the effectiveUntil date (tests/supply_chain.rs enforces the
+# pairing). Remove an id here when its osv-scanner.toml entry is removed.
+# @spec SHIP-SUPPLY-003, SHIP-SUPPLY-005, SHIP-SUPPLY-007
+ignore = ["RUSTSEC-2026-0459"]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[licenses]
+# Permissive licences, plus MPL-2.0 (file-level copyleft; nothing here modifies
+# MPL-licensed files).
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "MPL-2.0",
+    "CDLA-Permissive-2.0", # Mozilla root-certificate data (webpki-roots, webpki-root-certs)
+]
+confidence-threshold = 0.9
+# One list is shared across repositories; an entry no crate here uses is fine.
+unused-allowed-license = "allow"
+
+[licenses.private]
+# This crate is not published to a registry.
+ignore = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

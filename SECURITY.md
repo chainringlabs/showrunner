@@ -39,7 +39,7 @@ Published images are built by GitHub Actions and:
 
 all pushed to the registry alongside the image. See [Verifying the image](README.md#verifying-the-image) for how to check them.
 
-Dependencies are scanned in CI (`cargo audit`, `npm audit`, OSV, Socket) and updated automatically by Renovate.
+Dependencies are scanned in CI (`cargo-deny`, `npm audit signatures`, OSV, Socket) and updated automatically by Renovate.
 
 ## Handling secrets
 
