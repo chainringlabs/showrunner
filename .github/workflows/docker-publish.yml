@@ -23,6 +23,7 @@ jobs:
       cargo-dir: backend
       socket-dir: frontend
       node-version: "26"
+      cargo-deny: true
     # Pass only the secret the reusable workflow declares, not the whole store.
     secrets:
       SOCKET_SECURITY_API_KEY: ${{ secrets.SOCKET_SECURITY_API_KEY }}

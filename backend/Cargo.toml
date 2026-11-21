@@ -2,6 +2,8 @@
 name = "showrunner-backend"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+publish = false
 description = "Showrunner — TV show tracking across streaming and cable"
 authors = ["tgrecojr"]
 

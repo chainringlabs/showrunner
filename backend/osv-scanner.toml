@@ -3,8 +3,8 @@
 #
 # Per-lockfile: applies only to advisories found in the sibling Cargo.lock.
 # Every entry needs an id, an effectiveUntil date, and a reason; the scan fails
-# again once the date passes. Any id ignored for cargo audit in
-# .cargo/audit.toml must also be listed here (backend/tests/supply_chain.rs).
+# again once the date passes. Any id ignored for cargo-deny in
+# deny.toml must also be listed here (backend/tests/supply_chain.rs).
 # @spec SHIP-SUPPLY-003, SHIP-SUPPLY-005
 
 [[IgnoredVulns]]
