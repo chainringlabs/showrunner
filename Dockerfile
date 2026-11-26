@@ -43,7 +43,7 @@ RUN mkdir -p /rootfs/data && chown -R 65532:65532 /rootfs
 # no libssl (rustls handles TLS). The image's default user is uid 65532
 # (nonroot) and it ships a CA bundle at /etc/ssl/certs/ca-certificates.crt
 # which reqwest's rustls-platform-verifier picks up automatically.
-FROM cgr.dev/chainguard/glibc-dynamic:latest@sha256:eaa0c377a38e4c67f4192fd5fe9d24d39d51c4531613d97731537f9d33460ae4
+FROM cgr.dev/chainguard/glibc-dynamic:latest@sha256:ae815f889199ee018b0072f05939ecef65b1b3a831d1c768fa82d1860f889942
 
 WORKDIR /app
 
